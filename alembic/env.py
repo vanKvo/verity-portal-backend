@@ -12,6 +12,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from app.config import get_settings
 from app.infrastructure.adapters.database.setup import Base
+# Import models here to ensure they are registered with Base.metadata
+from app.infrastructure.adapters.database.models import UserModel, FileMetadataModel
 
 settings = get_settings()
 
@@ -39,6 +41,7 @@ def run_migrations_offline() -> None:
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
+        include_schemas=True,
     )
 
     with context.begin_transaction():
@@ -54,7 +57,9 @@ def run_migrations_online() -> None:
 
     with connectable.connect() as connection:
         context.configure(
-            connection=connection, target_metadata=target_metadata
+            connection=connection, 
+            target_metadata=target_metadata,
+            include_schemas=True
         )
 
         with context.begin_transaction():
