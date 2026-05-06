@@ -1,5 +1,5 @@
 import uuid
-from sqlalchemy import Column, String, Boolean, Uuid, DateTime
+from sqlalchemy import Column, String, Boolean, Uuid, DateTime, JSON
 from sqlalchemy.sql import func
 from .setup import Base
 
@@ -23,4 +23,13 @@ class FileMetadataModel(Base):
     storage_path = Column(String, nullable=False)
     file_hash = Column(String, nullable=True)
     status = Column(String, default="STAGED", nullable=False) # STAGED, PROCESSED, ARCHIVED, PURGED
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class IntakeRecordModel(Base):
+    __tablename__ = "intake_records"
+    __table_args__ = {"schema": "verity"}
+
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    job_id = Column(Uuid(as_uuid=True), nullable=False, index=True)
+    data = Column(JSON, nullable=False) # JSONB in Postgres
     created_at = Column(DateTime(timezone=True), server_default=func.now())
