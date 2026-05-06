@@ -64,3 +64,31 @@ async def test_archive_file_coordinates_move_and_update(file_manager, mock_stora
     assert mock_file.status == "ARCHIVED"
     assert mock_file.storage_path == "/archive/test.csv"
     assert mock_db.commit.called
+
+@pytest.mark.asyncio
+async def test_confirm_and_ingest_standardizes_dates(file_manager, mock_storage, mock_db):
+    job_id = uuid.uuid4()
+    # Mocking DB query for file metadata
+    mock_file = MagicMock()
+    mock_file.storage_path = "/staging/test.csv"
+    mock_file.original_name = "test.csv"
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_file
+    
+    # CSV content with non-ISO date
+    csv_content = b"emp_id,term_date\n1,12/31/2023"
+    mock_storage.get_file.return_value = csv_content
+    
+    # Mappings including a date field
+    mappings = {"emp_id": "employee_id", "term_date": "hr_termination_date"}
+    
+    # The domain model should define which fields are dates, 
+    # but for now we'll assume the mapper logic or schema spec identifies them.
+    # In this implementation, we'll try to parse any column that ends with '_date'.
+    
+    count = await file_manager.confirm_and_ingest(job_id, mappings)
+    
+    assert count == 1
+    # Check that db.add was called with a record containing ISO date
+    added_record = mock_db.add.call_args_list[0][0][0]
+    # We expect '2023-12-31'
+    assert added_record.data["hr_termination_date"] == "2023-12-31"
