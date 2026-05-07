@@ -9,6 +9,8 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
 
+# Allows the function to "pause" while the app uses the database to execute crud data, then resume to 
+# run the cleanup code (db.close()) once the operation is done.
 def get_db():
     db = SessionLocal()
     try:
