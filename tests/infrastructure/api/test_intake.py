@@ -74,3 +74,14 @@ async def test_confirm_mapping_success(mock_file_manager):
         assert response.status_code == 200
         assert response.json()["status"] == "success"
         assert response.json()["records_ingested"] == 1
+
+def test_confirm_mapping_fails_if_required_schema_missing(mock_file_manager):
+    job_id = str(uuid.uuid4())
+    # Intentionally missing 'hr_termination_date' for HR_ROSTER
+    mappings = {"First Name": "first_name"}
+    
+    response = client.post(f"/intake/confirm/{job_id}?schema_type=HR_ROSTER", json=mappings)
+    
+    assert response.status_code == 400
+    assert response.json()["error"] == "Validation Failed"
+    assert "hr_termination_date" in response.json()["message"]

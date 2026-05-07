@@ -63,16 +63,35 @@ async def upload_file(
         "suggestions": suggestions
     }
 
+from app.domain.exceptions.compliance import MappingError
+from typing import List, Dict, Optional
+
+REQUIRED_SCHEMAS = {
+    "HR_ROSTER": ["employee_id", "hr_termination_date"],
+    "IT_ACCESS": ["employee_id", "last_system_login"]
+}
+
 @router.post("/confirm/{job_id}")
 async def confirm_mapping(
     job_id: uuid.UUID,
     mappings: Dict[str, str],
+    schema_type: Optional[str] = None,
     file_manager: FileManager = Depends(get_file_manager)
 ):
+    # 1. Validate against required schema if provided
+    if schema_type in REQUIRED_SCHEMAS:
+        required_fields = REQUIRED_SCHEMAS[schema_type]
+        mapped_targets = set(mappings.values())
+        missing = [f for f in required_fields if f not in mapped_targets]
+        if missing:
+            raise MappingError(missing)
+
     try:
         count = await file_manager.confirm_and_ingest(job_id, mappings)
         return {"status": "success", "records_ingested": count}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except MappingError:
+        raise # Handled by global exception handler
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
