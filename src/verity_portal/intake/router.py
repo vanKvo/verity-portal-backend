@@ -71,22 +71,23 @@ async def confirm_mapping(
     request: ConfirmMappingRequest,
     intake_service: IntakeService = Depends(get_intake_service)
 ):
-    mappings = request.mappings
+    # Filter out empty or null mappings to avoid columns with empty headers
+    active_mappings = {k: v for k, v in request.mappings.items() if k and v}
     schema_type = request.schema_type
     
     if schema_type in REQUIRED_SCHEMAS:
         required_fields = REQUIRED_SCHEMAS[schema_type]
-        mapped_targets = set(mappings.values())
+        mapped_targets = set(active_mappings.values())
         missing = [f for f in required_fields if f not in mapped_targets]
         if missing:
             raise MappingError(missing)
 
     try:
-        count = await intake_service.confirm_and_ingest(job_id, mappings)
+        count = await intake_service.confirm_and_ingest(job_id, active_mappings)
         return {"status": "success", "records_ingested": count}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
     except MappingError:
         raise 
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

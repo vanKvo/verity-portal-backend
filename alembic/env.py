@@ -10,10 +10,11 @@ from alembic import context
 # Add the app directory to the path so we can import the settings and models
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from app.config import get_settings
-from app.infrastructure.adapters.database.setup import Base
+from src.verity_portal.core.config import get_settings
+from src.verity_portal.core.database import Base
 # Import models here to ensure they are registered with Base.metadata
-from app.infrastructure.adapters.database.models import UserModel, FileMetadataModel
+from src.verity_portal.identity.models import UserModel
+from src.verity_portal.intake.models import FileMetadataModel, IntakeRecordModel
 
 settings = get_settings()
 

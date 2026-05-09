@@ -15,6 +15,14 @@ engine = create_engine(
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
+from sqlalchemy import event
+
+@event.listens_for(Base.metadata, "before_create")
+def strip_schema_for_sqlite(target, connection, **kw):
+    if connection.dialect.name == "sqlite":
+        for table in target.tables.values():
+            table.schema = None
+
 @pytest.fixture(scope="session", autouse=True)
 def setup_database():
     Base.metadata.create_all(bind=engine)

@@ -4,6 +4,7 @@ from src.verity_portal.core.database import Base
 
 class UserModel(Base):
     __tablename__ = "users"
+    __table_args__ = {"schema": "verity"}
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     email = Column(String, unique=True, index=True, nullable=False)

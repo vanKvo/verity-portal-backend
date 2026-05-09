@@ -55,20 +55,30 @@ class IntakeService:
         else:
             df = pd.read_excel(io.BytesIO(content))
             
-        mapped_df = df[list(mappings.keys())].rename(columns=mappings)
+        # Filter out empty or null mappings to avoid artifacts like '': NaN
+        active_mappings = {k: v for k, v in mappings.items() if k and v}
+        
+        mapped_df = df[list(active_mappings.keys())].rename(columns=active_mappings)
         
         for col in mapped_df.columns:
             if col.lower().endswith("_date"):
-                try:
-                    mapped_df[col] = pd.to_datetime(mapped_df[col]).dt.strftime('%Y-%m-%d')
-                except Exception:
-                    pass
+                def parse_date(val):
+                    try:
+                        if pd.isna(val) or str(val).strip() == "":
+                            return None
+                        return pd.to_datetime(val).strftime('%Y-%m-%d')
+                    except (ValueError, TypeError, pd.errors.ParserError):
+                        return None
+                
+                mapped_df[col] = mapped_df[col].apply(parse_date)
 
         records_data = mapped_df.to_dict(orient="records")
         for record in records_data:
+            # Clean up NaN values to None for proper JSON storage
+            cleaned_data = {k: (None if pd.isna(v) else v) for k, v in record.items()}
             db_record = IntakeRecordModel(
                 job_id=job_id,
-                data=record
+                data=cleaned_data
             )
             self.db.add(db_record)
             

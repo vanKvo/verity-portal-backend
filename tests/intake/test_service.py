@@ -80,3 +80,26 @@ async def test_confirm_and_ingest_standardizes_dates(intake_service, mock_storag
     assert count == 1
     added_record = mock_db.add.call_args_list[0][0][0]
     assert added_record.data["hr_termination_date"] == "2023-12-31"
+
+@pytest.mark.asyncio
+async def test_confirm_and_ingest_handles_invalid_dates(intake_service, mock_storage, mock_db):
+    job_id = uuid.uuid4()
+    mock_file = MagicMock()
+    mock_file.storage_path = "/staging/test_invalid.csv"
+    mock_file.original_name = "test_invalid.csv"
+    mock_db.query.return_value.filter.return_value.first.return_value = mock_file
+    
+    # One valid, one invalid, one null
+    csv_content = b"emp_id,term_date\n1,2023-10-01\n2,not-a-date\n3,"
+    mock_storage.get_file.return_value = csv_content
+    
+    mappings = {"emp_id": "employee_id", "term_date": "hr_termination_date"}
+    
+    count = await intake_service.confirm_and_ingest(job_id, mappings)
+    
+    assert count == 3
+    records = [call[0][0].data for call in mock_db.add.call_args_list]
+    
+    assert records[0]["hr_termination_date"] == "2023-10-01"
+    assert records[1]["hr_termination_date"] is None
+    assert records[2]["hr_termination_date"] is None

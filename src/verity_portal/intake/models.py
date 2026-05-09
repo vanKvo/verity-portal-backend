@@ -5,6 +5,7 @@ from src.verity_portal.core.database import Base
 
 class FileMetadataModel(Base):
     __tablename__ = "file_metadata"
+    __table_args__ = {"schema": "verity"}
 
     file_id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     job_id = Column(Uuid(as_uuid=True), nullable=False, index=True)
@@ -16,6 +17,7 @@ class FileMetadataModel(Base):
 
 class IntakeRecordModel(Base):
     __tablename__ = "intake_records"
+    __table_args__ = {"schema": "verity"}
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
     job_id = Column(Uuid(as_uuid=True), nullable=False, index=True)
