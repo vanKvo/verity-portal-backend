@@ -33,26 +33,35 @@ def generate_audit_pdf(violations: List[Dict[str, Any]]) -> bytes:
         pdf.set_font("helvetica", "I", 12)
         pdf.cell(0, 10, "No compliance violations found in this audit run.", new_x="LMARGIN", new_y="NEXT")
     else:
-        pdf.set_font("helvetica", "B", 10)
-        pdf.set_fill_color(200, 220, 255) 
-        pdf.cell(40, 10, "Employee ID", border=1, fill=True)
-        pdf.cell(30, 10, "Risk Level", border=1, fill=True)
-        pdf.cell(50, 10, "Violation Type", border=1, fill=True)
-        pdf.cell(70, 10, "Details", border=1, fill=True)
-        pdf.ln()
-        
-        pdf.set_font("helvetica", "", 9)
-        for v in violations:
-            pdf.cell(40, 10, str(v.get("employee_id", "N/A")), border=1)
-            risk = v.get("risk_level", "N/A")
-            if risk == "HIGH":
-                pdf.set_text_color(200, 0, 0)
-            else:
-                pdf.set_text_color(0, 0, 0)
-            pdf.cell(30, 10, risk, border=1)
-            pdf.set_text_color(0, 0, 0)
-            pdf.cell(50, 10, str(v.get("violation_type", "N/A")), border=1)
-            pdf.cell(70, 10, str(v.get("details", "N/A")), border=1)
-            pdf.ln()
+        pdf.set_font("helvetica", "", 10)
+        # Using fpdf2's table feature for automatic line wrapping and column management
+        with pdf.table(
+            borders_layout="SINGLE_TOP_LINE",
+            cell_fill_color=(245, 245, 245),
+            cell_fill_mode="ROWS",
+            line_height=pdf.font_size * 2.5,
+            text_align="LEFT",
+            width=190,
+            col_widths=(35, 25, 45, 85)
+        ) as table:
+            # Header Row
+            pdf.set_font("helvetica", "B", 10)
+            header = table.row()
+            header.cell("Employee ID")
+            header.cell("Risk Level")
+            header.cell("Violation Type")
+            header.cell("Details")
+            
+            # Data Rows
+            pdf.set_font("helvetica", "", 9)
+            for v in violations:
+                row = table.row()
+                row.cell(str(v.get("employee_id", "N/A")))
+                
+                risk = str(v.get("risk_level", "N/A"))
+                row.cell(risk)
+                
+                row.cell(str(v.get("violation_type", "N/A")))
+                row.cell(str(v.get("details", "N/A")))
 
     return bytes(pdf.output())

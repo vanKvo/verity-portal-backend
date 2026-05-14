@@ -5,6 +5,7 @@ from src.verity_portal.core.config import get_settings
 from src.verity_portal.identity.router import router as identity_router
 from src.verity_portal.intake.router import router as intake_router
 from src.verity_portal.audit.router import router as audit_router
+from src.verity_portal.itar.router import router as itar_router
 from src.verity_portal.core.exceptions import MappingError, ComplianceError
 
 settings = get_settings()
@@ -41,6 +42,7 @@ app.add_middleware(
 app.include_router(identity_router)
 app.include_router(intake_router)
 app.include_router(audit_router)
+app.include_router(itar_router)
 
 @app.get("/health")
 async def health_check():

@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 from src.verity_portal.core.config import get_settings
 from src.verity_portal.core.database import get_db
 from src.verity_portal.identity.models import UserModel
-from src.verity_portal.identity.schemas import UserCreate, Token
-from src.verity_portal.identity.service import UserDomain, InvalidDomainError
+from src.verity_portal.identity.schemas import UserCreate, Token, UserDomain
+from src.verity_portal.identity.service import IdentityService
+from src.verity_portal.identity.exceptions import InvalidDomainError
 
 settings = get_settings()
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -29,7 +30,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=400, detail="Email already registered")
         
     try:
-        domain_user = UserDomain.create(email=user_data.email, raw_password=user_data.password)
+        domain_user = IdentityService.create_user_domain(email=user_data.email, raw_password=user_data.password)
     except InvalidDomainError as e:
         raise HTTPException(status_code=400, detail=str(e))
         
@@ -42,23 +43,24 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     db.add(new_db_user)
     db.commit()
     
-    access_token = create_access_token(data={"sub": domain_user.email, "role": domain_user.role})
-    return {"access_token": access_token, "token_type": "bearer", "role": domain_user.role}
+    access_token = create_access_token(data={"sub": domain_user.email, "roles": [domain_user.role]})
+    return {"access_token": access_token, "token_type": "bearer", "roles": [domain_user.role]}
 
 @router.post("/login", response_model=Token)
 def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
     db_user = db.query(UserModel).filter(UserModel.email == form_data.username).first()
     if not db_user:
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
+        raise HTTPException(status_code=401, detail="Incorrect email")
         
-    domain_user = UserDomain(email=db_user.email, hashed_password=db_user.hashed_password, role=db_user.role)
-    if not domain_user.verify_password(form_data.password):
-        raise HTTPException(status_code=401, detail="Incorrect email or password")
+    if not IdentityService.verify_password(form_data.password, db_user.hashed_password):
+        raise HTTPException(status_code=401, detail="Incorrect password")
         
-    access_token = create_access_token(data={"sub": domain_user.email, "role": domain_user.role})
-    return {"access_token": access_token, "token_type": "bearer", "role": domain_user.role}
+    access_token = create_access_token(data={"sub": db_user.email, "roles": [db_user.role]})
+    return {"access_token": access_token, "token_type": "bearer", "roles": [db_user.role]}
 
 @router.post("/guest-login", response_model=Token)
 def guest_login():
-    access_token = create_access_token(data={"sub": "guest@verity.com", "role": "guest"})
-    return {"access_token": access_token, "token_type": "bearer", "role": "guest"}
+    # Injecting ROLE_EXPORT_CONTROL for demo purposes as part of Phase 6 rollout
+    roles = ["guest", "ROLE_EXPORT_CONTROL"]
+    access_token = create_access_token(data={"sub": "guest@verity.com", "roles": roles})
+    return {"access_token": access_token, "token_type": "bearer", "roles": roles}

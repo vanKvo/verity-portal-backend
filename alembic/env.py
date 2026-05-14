@@ -15,6 +15,8 @@ from src.verity_portal.core.database import Base
 # Import models here to ensure they are registered with Base.metadata
 from src.verity_portal.identity.models import UserModel
 from src.verity_portal.intake.models import FileMetadataModel, IntakeRecordModel
+from src.verity_portal.shared.models import PersonnelModel
+from src.verity_portal.itar.models import ProjectModel, ProjectAssignmentModel, ComplianceViolationModel
 
 settings = get_settings()
 

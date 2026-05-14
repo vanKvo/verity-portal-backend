@@ -3,22 +3,27 @@ from pydantic_settings import BaseSettings
 from functools import lru_cache
 
 class Settings(BaseSettings):
+    """Application settings loaded from environment variables."""
     APP_NAME: str = "Verity Portal"
     DEBUG: bool = False
     
     # Database
-    DATABASE_URL: str = "postgresql://user:password@localhost:5432/verity_db"
+    DATABASE_URL: str = Field(..., description="Postgres connection string")
     
     # Security
-    SECRET_KEY: str = "your-secret-key-for-development"
+    SECRET_KEY: str = Field(..., description="Secret key for JWT signing")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
     # Corporate Domain
     ALLOWED_DOMAINS: str = Field(default="corporate.com,verity.com")
 
+    # AWS Configuration
+    S3_HR_BUCKET_NAME: str = Field(..., description="S3 bucket for HR personnel data")
+
     @property
     def allowed_domains_list(self) -> list[str]:
+        """Parses the ALLOWED_DOMAINS string into a list."""
         return [domain.strip() for domain in self.ALLOWED_DOMAINS.split(",")]
 
     model_config = {
@@ -28,4 +33,5 @@ class Settings(BaseSettings):
 
 @lru_cache()
 def get_settings():
+    """Returns a cached Settings instance."""
     return Settings()

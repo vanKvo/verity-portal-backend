@@ -1,0 +1,43 @@
+import uuid
+from sqlalchemy import Column, String, Uuid, ForeignKey, Enum as SqlEnum, DateTime
+from sqlalchemy.sql import func
+import enum
+from src.verity_portal.core.database import Base
+
+class ProjectSensitivity(str, enum.Enum):
+    ITAR_RESTRICTED = "ITAR_RESTRICTED"
+    EAR99 = "EAR99"
+    UNCLASSIFIED = "UNCLASSIFIED"
+
+class ProjectModel(Base):
+    __tablename__ = "projects"
+    __table_args__ = {"schema": "verity"}
+
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(String, unique=True, index=True, nullable=False)
+    name = Column(String, nullable=False)
+    sensitivity = Column(
+        SqlEnum(ProjectSensitivity), 
+        default=ProjectSensitivity.UNCLASSIFIED, 
+        nullable=False
+    )
+
+class ProjectAssignmentModel(Base):
+    __tablename__ = "project_assignments"
+    __table_args__ = {"schema": "verity"}
+
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    project_id = Column(Uuid(as_uuid=True), ForeignKey("verity.projects.id"), nullable=False)
+    personnel_id = Column(Uuid(as_uuid=True), ForeignKey("verity.personnel.id"), nullable=False)
+    last_verified_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+class ComplianceViolationModel(Base):
+    __tablename__ = "compliance_violations"
+    __table_args__ = {"schema": "verity"}
+
+    id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    personnel_id = Column(Uuid(as_uuid=True), ForeignKey("verity.personnel.id"), nullable=False)
+    project_id = Column(Uuid(as_uuid=True), ForeignKey("verity.projects.id"), nullable=False)
+    status = Column(String, default="OPEN", nullable=False) # OPEN, RESOLVED
+    notes = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
