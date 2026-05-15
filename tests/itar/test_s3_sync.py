@@ -1,7 +1,7 @@
 import pytest
 import boto3
 from moto import mock_aws
-from src.verity_portal.shared.models import PersonnelModel, CitizenshipStatus
+from src.verity_portal.data_hub.personnel.models import PersonnelModel, CitizenshipStatus
 from src.verity_portal.itar.s3_worker import S3WorkerService
 
 @pytest.fixture

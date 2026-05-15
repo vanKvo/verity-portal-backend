@@ -3,7 +3,7 @@ import pandas as pd
 import boto3
 from sqlalchemy.orm import Session
 from thefuzz import process
-from src.verity_portal.shared.models import PersonnelModel, CitizenshipStatus
+from src.verity_portal.data_hub.personnel.models import PersonnelModel, CitizenshipStatus
 
 class S3WorkerService:
     """Service for background processing of HR data from AWS S3."""

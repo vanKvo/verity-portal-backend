@@ -8,11 +8,14 @@ from src.verity_portal.identity.router import create_access_token
 test_app = FastAPI()
 
 @test_app.get("/protected")
-def protected_route(_ = Depends(require_role("ROLE_EXPORT_CONTROL"))):
+def protected_route(_ = Depends(require_role("ROLE_ECO"))):
     return {"message": "success"}
 
 def test_require_role_denied_when_missing():
     """Test that 403 is returned if the user lacks the required role."""
+    # TestClient simulates a real HTTP request, 
+    # forcing FastAPI to resolve the dependency tree (decoding the JWT, checking roles, and handling any HTTPException we raise).
+    # test our security plumbing in a "real-world" scenario without needing to spin up the entire production database or server.
     client = TestClient(test_app)
     # Token with wrong role
     token = create_access_token(data={"sub": "test@verity.com", "roles": ["USER"]})
@@ -24,7 +27,7 @@ def test_require_role_allowed_when_present():
     """Test that access is granted if the user has the required role."""
     client = TestClient(test_app)
     # Token with correct role
-    token = create_access_token(data={"sub": "test@verity.com", "roles": ["ROLE_EXPORT_CONTROL"]})
+    token = create_access_token(data={"sub": "test@verity.com", "roles": ["ROLE_ECO"]})
     response = client.get("/protected", headers={"Authorization": f"Bearer {token}"})
     assert response.status_code == 200
     assert response.json()["message"] == "success"

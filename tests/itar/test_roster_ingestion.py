@@ -1,7 +1,8 @@
 import pytest
 import io
-from src.verity_portal.shared.models import PersonnelModel, CitizenshipStatus
-from src.verity_portal.itar.models import ProjectModel, ProjectAssignmentModel, ProjectSensitivity
+from src.verity_portal.data_hub.personnel.models import PersonnelModel, CitizenshipStatus
+from src.verity_portal.data_hub.projects.models import ProjectModel, ProjectSensitivity
+from src.verity_portal.itar.models import ProjectAssignmentModel
 from src.verity_portal.identity.router import create_access_token
 
 def test_ingest_roster_success(client, db_session):
@@ -16,7 +17,8 @@ def test_ingest_roster_success(client, db_session):
     project = ProjectModel(
         project_id="P500", 
         name="Project X", 
-        sensitivity=ProjectSensitivity.ITAR_RESTRICTED
+        sensitivity=ProjectSensitivity.ITAR_RESTRICTED,
+        export_control_status="ACTIVE"
     )
     db_session.add(personnel)
     db_session.add(project)
@@ -27,7 +29,7 @@ def test_ingest_roster_success(client, db_session):
     file = ("roster.csv", io.BytesIO(csv_content.encode()))
 
     # 3. Authenticate
-    token = create_access_token(data={"sub": "admin@verity.com", "roles": ["ROLE_EXPORT_CONTROL"]})
+    token = create_access_token(data={"sub": "admin@verity.com", "roles": ["ROLE_PM"]})
     headers = {"Authorization": f"Bearer {token}"}
 
     # 4. Action
@@ -39,7 +41,8 @@ def test_ingest_roster_success(client, db_session):
 
     # 5. Assertions
     assert response.status_code == 200
-    assert response.json()["message"] == "Ingestion complete"
+    assert response.json()["success_count"] == 1
+    assert response.json()["error_count"] == 0
     
     # Verify DB state
     assignment = db_session.query(ProjectAssignmentModel).first()

@@ -24,4 +24,4 @@ def test_guest_login(client):
     response = client.post("/auth/guest-login")
     assert response.status_code == 200
     assert "access_token" in response.json()
-    assert response.json()["role"] == "guest"
+    assert "guest" in response.json()["roles"]
