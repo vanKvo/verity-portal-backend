@@ -102,14 +102,24 @@ class ItarService:
         
         Implements AUTO-RESOLUTION logic for eventual consistency.
         """
-        # 1. NEW VIOLATIONS DETECTION
-        # Find all Foreign Nationals on ITAR Restricted projects
+        # Querying for security/compliance violations
         violations = (
             db.query(ProjectAssignmentModel)
-            .join(PersonnelModel)
-            .join(ProjectModel)
+            .join(
+                PersonnelModel, 
+                PersonnelModel.employee_id == ProjectAssignmentModel.employee_id
+            )
+            .join(
+                ProjectModel, 
+                ProjectModel.project_id == ProjectAssignmentModel.project_id
+            )
             .filter(
-                PersonnelModel.citizenship_status != CitizenshipStatus.US_CITIZEN,
+                # Catch anyone who is NEITHER a US Citizen NOR a Permanent Resident
+                PersonnelModel.citizenship_status.notin_([
+                    CitizenshipStatus.US_CITIZEN, 
+                    CitizenshipStatus.PERMANENT_RESIDENT
+                ]),
+                # Narrow it down strictly to ITAR restricted projects
                 ProjectModel.sensitivity == ProjectSensitivity.ITAR_RESTRICTED
             )
             .all()
