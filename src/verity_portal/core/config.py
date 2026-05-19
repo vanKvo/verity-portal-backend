@@ -18,6 +18,9 @@ class Settings(BaseSettings):
     # Corporate Domain
     ALLOWED_DOMAINS: str = Field(default="corporate.com,verity.com")
 
+    # CORS Origins whitelisting
+    ALLOWED_ORIGINS: str = Field(default="http://localhost:4200")
+
     # AWS Configuration
     S3_HR_BUCKET_NAME: str = Field(..., description="S3 bucket for HR personnel data")
 
@@ -25,6 +28,11 @@ class Settings(BaseSettings):
     def allowed_domains_list(self) -> list[str]:
         """Parses the ALLOWED_DOMAINS string into a list."""
         return [domain.strip() for domain in self.ALLOWED_DOMAINS.split(",")]
+
+    @property
+    def allowed_origins_list(self) -> list[str]:
+        """Parses the ALLOWED_ORIGINS string into a list."""
+        return [origin.strip() for origin in self.ALLOWED_ORIGINS.split(",")]
 
     model_config = {
         "env_file": ".env",

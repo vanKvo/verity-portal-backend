@@ -47,8 +47,8 @@ def test_ingest_roster_success(client, db_session):
     # Verify DB state
     assignment = db_session.query(ProjectAssignmentModel).first()
     assert assignment is not None
-    assert assignment.personnel_id == personnel.id
-    assert assignment.project_id == project.id
+    assert assignment.employee_id == personnel.employee_id
+    assert assignment.project_id == project.project_id
 
 def test_ingest_roster_unauthorized(client):
     """Test that the endpoint rejects users without the correct role."""

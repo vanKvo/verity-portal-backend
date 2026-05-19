@@ -16,8 +16,8 @@ class ProjectAssignmentModel(Base):
     __table_args__ = {"schema": "verity"}
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    project_id = Column(Uuid(as_uuid=True), ForeignKey("verity.projects.id"), nullable=False)
-    personnel_id = Column(Uuid(as_uuid=True), ForeignKey("verity.personnel.id"), nullable=False)
+    project_id = Column(String, ForeignKey("verity.projects.project_id"), nullable=False)
+    employee_id = Column(String, ForeignKey("verity.personnel.employee_id"), nullable=False)
     last_verified_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 class ComplianceViolationModel(Base):
@@ -25,9 +25,10 @@ class ComplianceViolationModel(Base):
     __table_args__ = {"schema": "verity"}
 
     id = Column(Uuid(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    personnel_id = Column(Uuid(as_uuid=True), ForeignKey("verity.personnel.id"), nullable=False)
-    project_id = Column(Uuid(as_uuid=True), ForeignKey("verity.projects.id"), nullable=False)
+    employee_id = Column(String, ForeignKey("verity.personnel.employee_id"), nullable=False)
+    project_id = Column(String, ForeignKey("verity.projects.project_id"), nullable=False)
     status = Column(String(50), default="OPEN", nullable=False) # OPEN, RESOLVED
     resolution_reason = Column(String(255), nullable=True) # SYSTEM_AUTO_RESOLVED, MANUAL_DSP5, etc.
     notes = Column(String, nullable=True) # Unlimited text
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    resolved_at = Column(DateTime(timezone=True), nullable=True)

@@ -11,7 +11,7 @@ def test_reconciliation_engine_safe_access(db_session):
     db_session.add_all([p, proj])
     db_session.commit()
     
-    db_session.add(ProjectAssignmentModel(personnel_id=p.id, project_id=proj.id))
+    db_session.add(ProjectAssignmentModel(employee_id=p.employee_id, project_id=proj.project_id))
     db_session.commit()
 
     ItarService.run_reconciliation_audit(db_session)
@@ -26,15 +26,15 @@ def test_reconciliation_engine_violation_detected(db_session):
     db_session.add_all([p, proj])
     db_session.commit()
     
-    db_session.add(ProjectAssignmentModel(personnel_id=p.id, project_id=proj.id))
+    db_session.add(ProjectAssignmentModel(employee_id=p.employee_id, project_id=proj.project_id))
     db_session.commit()
 
     ItarService.run_reconciliation_audit(db_session)
     
     violation = db_session.query(ComplianceViolationModel).first()
     assert violation is not None
-    assert violation.personnel_id == p.id
-    assert violation.project_id == proj.id
+    assert violation.employee_id == p.employee_id
+    assert violation.project_id == proj.project_id
     assert violation.status == "OPEN"
 
 def test_auto_resolution_logic(db_session):
@@ -45,7 +45,7 @@ def test_auto_resolution_logic(db_session):
     db_session.add_all([p, proj])
     db_session.commit()
     
-    db_session.add(ProjectAssignmentModel(personnel_id=p.id, project_id=proj.id))
+    db_session.add(ProjectAssignmentModel(employee_id=p.employee_id, project_id=proj.project_id))
     db_session.commit()
 
     # Detect violation

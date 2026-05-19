@@ -42,9 +42,8 @@ def run_audit(db: Session = Depends(get_db)):
     dependencies=[Depends(require_role("ROLE_PM"))]
 )
 def get_violations(db: Session = Depends(get_db)):
-    """Fetches all active compliance violations."""
-    from src.verity_portal.itar.models import ComplianceViolationModel
-    return db.query(ComplianceViolationModel).filter(ComplianceViolationModel.status == "OPEN").all()
+    """Fetches all active and resolved compliance violations."""
+    return ItarService.get_violations(db)
 
 @router.put(
     "/violations/{violation_id}/resolve", 
@@ -53,10 +52,7 @@ def get_violations(db: Session = Depends(get_db)):
 )
 def resolve_violation(violation_id: str, reason: str = "MANUAL_RESOLUTION", db: Session = Depends(get_db)):
     """Marks a violation as resolved."""
-    from src.verity_portal.itar.models import ComplianceViolationModel
-    violation = db.query(ComplianceViolationModel).filter(ComplianceViolationModel.id == violation_id).first()
-    if violation:
-        violation.status = "RESOLVED"
-        violation.resolution_reason = reason
-        db.commit()
+    success = ItarService.resolve_violation(db, violation_id, reason)
+    if not success:
+        return {"message": "Violation not found or already resolved"}, status.HTTP_404_NOT_FOUND
     return {"message": "Violation resolved"}

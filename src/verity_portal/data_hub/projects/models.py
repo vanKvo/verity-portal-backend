@@ -1,5 +1,6 @@
 import uuid
-from sqlalchemy import Column, String, Uuid, Enum as SqlEnum
+from sqlalchemy import Column, String, Uuid, Enum as SqlEnum, DateTime
+from sqlalchemy.sql import func
 import enum
 from src.verity_portal.core.database import Base
 
@@ -22,3 +23,5 @@ class ProjectModel(Base):
     )
     department = Column(String(255), nullable=True)
     export_control_status = Column(String(255), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

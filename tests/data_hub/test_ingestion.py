@@ -37,7 +37,8 @@ def test_project_sensitivity_ingestion(db_session):
     data = {
         "project_id": ["P100", "P200"],
         "name": ["Secret Space", "Internal Tools"],
-        "sensitivity": ["ITAR_RESTRICTED", "EAR99"]
+        "sensitivity": ["ITAR_RESTRICTED", "EAR99"],
+        "export_control_status": ["ACTIVE", "ACTIVE"]
     }
     df = pd.DataFrame(data)
     

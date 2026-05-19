@@ -1,4 +1,6 @@
 import pandas as pd
+import io
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 from fastapi import UploadFile
 from src.verity_portal.data_hub.personnel.models import PersonnelModel, CitizenshipStatus
@@ -13,14 +15,32 @@ class ITARMappingError(ValidationError):
 class ItarService:
     @staticmethod
     def ingest_roster(db: Session, file: UploadFile, column_mapping: dict = None):
-        """Parses a CSV roster and creates project assignments.
+        """Parses a CSV, Excel, or Numbers roster and creates project assignments.
         
         Supports dynamic column mapping.
         """
+        fn = file.filename.lower()
         try:
-            df = pd.read_csv(file.file)
+            if fn.endswith(('.xlsx', '.xls')):
+                df = pd.read_excel(file.file)
+            elif fn.endswith('.numbers'):
+                from numbers_parser import Document
+                doc = Document(file.file)
+                sheets = doc.sheets
+                if not sheets or not sheets[0].tables:
+                    raise ValueError("Invalid Numbers file: no sheets or tables found")
+                table = sheets[0].tables[0]
+                data = []
+                for row in table.rows():
+                    data.append([cell.value if cell.value is not None else "" for cell in row])
+                if not data:
+                    df = pd.DataFrame()
+                else:
+                    df = pd.DataFrame(data[1:], columns=data[0])
+            else:
+                df = pd.read_csv(file.file)
         except Exception as e:
-            raise ITARMappingError(f"Failed to parse CSV: {str(e)}")
+            raise ITARMappingError(f"Failed to parse spreadsheet: {str(e)}")
 
         # Apply mapping if provided
         if column_mapping:
@@ -53,14 +73,14 @@ class ItarService:
 
                 # Check if assignment already exists
                 existing = db.query(ProjectAssignmentModel).filter(
-                    ProjectAssignmentModel.personnel_id == personnel.id,
-                    ProjectAssignmentModel.project_id == project.id
+                    ProjectAssignmentModel.employee_id == personnel.employee_id,
+                    ProjectAssignmentModel.project_id == project.project_id
                 ).first()
 
                 if not existing:
                     new_assignment = ProjectAssignmentModel(
-                        personnel_id=personnel.id,
-                        project_id=project.id
+                        employee_id=personnel.employee_id,
+                        project_id=project.project_id
                     )
                     db.add(new_assignment)
                     success_count += 1
@@ -89,7 +109,7 @@ class ItarService:
             .join(PersonnelModel)
             .join(ProjectModel)
             .filter(
-                PersonnelModel.citizenship_status == CitizenshipStatus.FOREIGN_NATIONAL,
+                PersonnelModel.citizenship_status != CitizenshipStatus.US_CITIZEN,
                 ProjectModel.sensitivity == ProjectSensitivity.ITAR_RESTRICTED
             )
             .all()
@@ -99,14 +119,14 @@ class ItarService:
         for v in violations:
             # Check if this violation is already recorded
             existing = db.query(ComplianceViolationModel).filter(
-                ComplianceViolationModel.personnel_id == v.personnel_id,
+                ComplianceViolationModel.employee_id == v.employee_id,
                 ComplianceViolationModel.project_id == v.project_id,
                 ComplianceViolationModel.status == "OPEN"
             ).first()
 
             if not existing:
                 new_violation = ComplianceViolationModel(
-                    personnel_id=v.personnel_id,
+                    employee_id=v.employee_id,
                     project_id=v.project_id,
                     status="OPEN",
                     notes="Automated detection: Foreign National assigned to ITAR project."
@@ -124,8 +144,8 @@ class ItarService:
         
         resolved_count = 0
         for v in open_violations:
-            personnel = db.query(PersonnelModel).get(v.personnel_id)
-            project = db.query(ProjectModel).get(v.project_id)
+            personnel = db.query(PersonnelModel).filter_by(employee_id=v.employee_id).first()
+            project = db.query(ProjectModel).filter_by(project_id=v.project_id).first()
             
             # If citizenship is no longer FOREIGN_NATIONAL or project is no longer ITAR_RESTRICTED
             if (personnel.citizenship_status != CitizenshipStatus.FOREIGN_NATIONAL or 
@@ -134,6 +154,7 @@ class ItarService:
                 v.status = "RESOLVED"
                 v.resolution_reason = "SYSTEM_AUTO_RESOLVED"
                 v.notes = f"System auto-resolved: Data mismatch cleared (Status: {personnel.citizenship_status})"
+                v.resolved_at = func.now()
                 resolved_count += 1
 
         db.commit()
@@ -141,3 +162,37 @@ class ItarService:
             "new_violations": violations_found,
             "auto_resolved": resolved_count
         }
+
+    @staticmethod
+    def get_violations(db: Session):
+        """Fetches all active and resolved compliance violations with enriched metadata."""
+        violations = db.query(ComplianceViolationModel).all()
+        result = []
+        for v in violations:
+            personnel = db.query(PersonnelModel).filter_by(employee_id=v.employee_id).first()
+            project = db.query(ProjectModel).filter_by(project_id=v.project_id).first()
+            result.append({
+                "id": str(v.id),
+                "employee_id": v.employee_id,
+                "project_id": v.project_id,
+                "citizenship": personnel.citizenship_status.value if personnel and personnel.citizenship_status else None,
+                "sensitivity": project.sensitivity.value if project and project.sensitivity else None,
+                "status": v.status,
+                "resolution_reason": v.resolution_reason,
+                "notes": v.notes,
+                "created_at": v.created_at.isoformat() if v.created_at else None,
+                "resolved_at": v.resolved_at.isoformat() if v.resolved_at else None
+            })
+        return result
+
+    @staticmethod
+    def resolve_violation(db: Session, violation_id: str, reason: str = "MANUAL_RESOLUTION"):
+        """Marks a violation as resolved with justification reason."""
+        violation = db.query(ComplianceViolationModel).filter(ComplianceViolationModel.id == violation_id).first()
+        if violation:
+            violation.status = "RESOLVED"
+            violation.resolution_reason = reason
+            violation.resolved_at = func.now()
+            db.commit()
+            return True
+        return False

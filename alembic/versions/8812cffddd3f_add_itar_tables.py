@@ -44,7 +44,7 @@ def upgrade() -> None:
     op.create_index(op.f('ix_verity_projects_project_id'), 'projects', ['project_id'], unique=True, schema='verity')
     op.create_table('compliance_violations',
     sa.Column('id', sa.Uuid(), nullable=False),
-    sa.Column('personnel_id', sa.Uuid(), nullable=False),
+    sa.Column('employee_id', sa.Uuid(), nullable=False),
     sa.Column('project_id', sa.Uuid(), nullable=False),
     sa.Column('status', sa.String(), nullable=False),
     sa.Column('notes', sa.String(), nullable=True),
@@ -57,9 +57,9 @@ def upgrade() -> None:
     op.create_table('project_assignments',
     sa.Column('id', sa.Uuid(), nullable=False),
     sa.Column('project_id', sa.Uuid(), nullable=False),
-    sa.Column('personnel_id', sa.Uuid(), nullable=False),
+    sa.Column('employee_id', sa.Uuid(), nullable=False),
     sa.Column('last_verified_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-    sa.ForeignKeyConstraint(['personnel_id'], ['verity.personnel.id'], ),
+    sa.ForeignKeyConstraint(['employee_id'], ['verity.personnel.id'], ),
     sa.ForeignKeyConstraint(['project_id'], ['verity.projects.id'], ),
     sa.PrimaryKeyConstraint('id'),
     schema='verity'

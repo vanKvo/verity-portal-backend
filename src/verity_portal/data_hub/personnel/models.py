@@ -1,5 +1,6 @@
 import uuid
-from sqlalchemy import Column, String, Uuid, Enum as SqlEnum, Date
+from sqlalchemy import Column, String, Uuid, Enum as SqlEnum, Date, DateTime
+from sqlalchemy.sql import func
 import enum
 from src.verity_portal.core.database import Base
 
@@ -24,3 +25,5 @@ class PersonnelModel(Base):
         nullable=False
     )
     termination_date = Column(Date, nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)
