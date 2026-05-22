@@ -1,16 +1,16 @@
+import logging
+from botocore.compat import logger
 import pandas as pd
-import io
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 from fastapi import UploadFile
 from src.verity_portal.data_hub.personnel.models import PersonnelModel, CitizenshipStatus
 from src.verity_portal.data_hub.projects.models import ProjectModel, ProjectSensitivity
 from src.verity_portal.itar.models import ProjectAssignmentModel, ComplianceViolationModel
-from src.verity_portal.core.exceptions import ValidationError
+from src.verity_portal.itar.exceptions import ITARMappingError
+from src.verity_portal.core.utils.file_utils import parse_file_to_df
 
-class ITARMappingError(ValidationError):
-    """Raised when data mapping fails for ITAR roster."""
-    pass
+logger = logging.getLogger(__name__)
 
 class ItarService:
     @staticmethod
@@ -19,28 +19,11 @@ class ItarService:
         
         Supports dynamic column mapping.
         """
-        fn = file.filename.lower()
         try:
-            if fn.endswith(('.xlsx', '.xls')):
-                df = pd.read_excel(file.file)
-            elif fn.endswith('.numbers'):
-                from numbers_parser import Document
-                doc = Document(file.file)
-                sheets = doc.sheets
-                if not sheets or not sheets[0].tables:
-                    raise ValueError("Invalid Numbers file: no sheets or tables found")
-                table = sheets[0].tables[0]
-                data = []
-                for row in table.rows():
-                    data.append([cell.value if cell.value is not None else "" for cell in row])
-                if not data:
-                    df = pd.DataFrame()
-                else:
-                    df = pd.DataFrame(data[1:], columns=data[0])
-            else:
-                df = pd.read_csv(file.file)
+            df = parse_file_to_df(file.filename, file.file)
         except Exception as e:
             raise ITARMappingError(f"Failed to parse spreadsheet: {str(e)}")
+
 
         # Apply mapping if provided
         if column_mapping:
