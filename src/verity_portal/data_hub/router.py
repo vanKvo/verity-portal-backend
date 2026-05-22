@@ -1,103 +1,289 @@
-from fastapi import APIRouter, Depends, UploadFile, File, BackgroundTasks, Form, HTTPException
-from sqlalchemy.orm import Session
-from typing import Optional
-import json
-import pandas as pd
-import io
-from src.verity_portal.core.database import get_db
-from src.verity_portal.core.security.roles import require_role
-from src.verity_portal.data_hub.personnel.service import PersonnelService
-from src.verity_portal.data_hub.projects.service import ProjectService
+"""Presentation router layer for the Data Hub feature slice.
 
+This module acts strictly as a thin coordination traffic controller that receives
+HTTP requests, validates inbound multipart/payload schemas, delegates all business
+orchestrations and transactional evaluations to the DataHubOrchestrationService, and
+standardizes exception handling to present clean, structured response payloads.
+"""
+import logging
+from typing import Optional
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
+
+from src.verity_portal.core.security.roles import require_role
+from src.verity_portal.data_hub.core.ingestion import DataHubOrchestrationService, get_orchestration_service
+from src.verity_portal.data_hub.core.retrieval import RetrievalStrategyFactory
+from src.verity_portal.data_hub.exceptions import DataHubRetrievalError, IngestionRoutingError, MappingParseError
+from src.verity_portal.data_hub.schemas import (
+    HeaderParsingResponse,
+    IngestionResponse,
+    S3SyncTriggeredResponse,
+    SyncStatusResponse,
+)
+
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/data-hub", tags=["Data Hub"])
 
-def parse_file_to_df(filename: str, contents: bytes) -> pd.DataFrame:
-    fn = filename.lower()
-    if fn.endswith(('.xlsx', '.xls')):
-        return pd.read_excel(io.BytesIO(contents))
-    elif fn.endswith('.numbers'):
-        from numbers_parser import Document
-        doc = Document(io.BytesIO(contents))
-        sheets = doc.sheets
-        if not sheets or not sheets[0].tables:
-            raise ValueError("Invalid Numbers file: no sheets or tables found")
-        table = sheets[0].tables[0]
-        data = []
-        for row in table.rows():
-            data.append([cell.value if cell.value is not None else "" for cell in row])
-        if not data:
-            return pd.DataFrame()
-        return pd.DataFrame(data[1:], columns=data[0])
-    else:
-        return pd.read_csv(io.BytesIO(contents))
 
-@router.post("/parse-headers")
-async def parse_headers(file: UploadFile = File(...)):
-    """Extracts column headers from CSV, Excel, or Numbers files for frontend mapping."""
-    contents = await file.read()
-    filename = file.filename.lower()
+@router.post("/parse-headers", response_model=HeaderParsingResponse, status_code=status.HTTP_200_OK)
+async def parse_headers(
+    file: UploadFile = File(...),
+    orchestration_service: DataHubOrchestrationService = Depends(get_orchestration_service),
+) -> HeaderParsingResponse:
+    """Extracts column headers from CSV, Excel, or Numbers files for frontend mapping.
+
+    Args:
+        file: The uploaded multipart file wrapper object.
+        orchestration_service: The injected orchestration coordination service.
+
+    Returns:
+        A HeaderParsingResponse DTO listing the string headers.
+
+    Raises:
+        HTTPException: If parsing fails or the document format is invalid.
+    """
+    strategy = RetrievalStrategyFactory.get_manual_strategy(file)
     try:
-        if filename.endswith(('.xlsx', '.xls')):
-            df = pd.read_excel(io.BytesIO(contents), nrows=1)
-            headers = list(df.columns)
-        elif filename.endswith('.numbers'):
-            from numbers_parser import Document
-            doc = Document(io.BytesIO(contents))
-            sheets = doc.sheets
-            if not sheets or not sheets[0].tables:
-                raise ValueError("Invalid Numbers file: no sheets or tables found")
-            table = sheets[0].tables[0]
-            headers = [str(cell.value) if cell.value is not None else "" for cell in table.rows(0)[0]]
-        else:
-            df = pd.read_csv(io.BytesIO(contents), nrows=1)
-            headers = list(df.columns)
-        
-        headers = [str(h).strip() for h in headers if h is not None]
-        return {"headers": headers}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Failed to parse column headers: {str(e)}")
+        headers = await orchestration_service.extract_headers(strategy)
+        return HeaderParsingResponse(headers=headers)
+    except DataHubRetrievalError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "RETRIEVAL_FAILED",
+                "message": f"Failed to retrieve document stream: {exc.detail}",
+            },
+        ) from exc
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "INVALID_FILE_STRUCTURE",
+                "message": f"The document is empty or lacks clear header columns: {str(exc)}",
+            },
+        ) from exc
+    except Exception as exc:
+        logger.exception("Failed in parsing hearders")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error_code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected error occurred during header extraction.",
+            },
+        ) from exc
 
-@router.post("/personnel/upload", dependencies=[Depends(require_role("ROLE_HR"))])
+
+@router.post(
+    "/personnel/upload",
+    response_model=IngestionResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_role("ROLE_HR"))],
+)
 async def upload_hr_data(
     file: UploadFile = File(...),
     mapping: Optional[str] = Form(None),
-    db: Session = Depends(get_db)
-):
-    """Manual upload for HR Master Data (Citizenship, Termination)."""
-    contents = await file.read()
-    try:
-        df = parse_file_to_df(file.filename, contents)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    
-    column_mapping = json.loads(mapping) if mapping else None
-    service = PersonnelService(db)
-    result = service.ingest_personnel_roster(df, column_mapping=column_mapping)
-    return result
+    orchestration_service: DataHubOrchestrationService = Depends(get_orchestration_service),
+) -> IngestionResponse:
+    """Manual upload endpoint for HR Master Data (Citizenship, Termination).
 
-@router.post("/projects/upload", dependencies=[Depends(require_role("ROLE_ECO"))])
+    Enforces strict ROLE_HR role authorization before processing.
+
+    Args:
+        file: The uploaded multipart spreadsheet file.
+        mapping: Optional stringified JSON mapping object for header mapping.
+        orchestration_service: The injected orchestration coordination service.
+
+    Returns:
+        An IngestionResponse DTO showing counts of success/failed rows and details.
+
+    Raises:
+        HTTPException: If ingestion, parsing, or column mapping fails.
+    """
+    strategy = RetrievalStrategyFactory.get_manual_strategy(file)
+    try:
+        result = await orchestration_service.process_manual_upload(
+            strategy=strategy, mapping_str=mapping, target_service_type="personnel"
+        )
+        return IngestionResponse(**result)
+    except MappingParseError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "INVALID_MAPPING_FORMAT",
+                "message": f"The column mapping JSON payload is invalid: {exc.detail}",
+            },
+        ) from exc
+    except DataHubRetrievalError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "RETRIEVAL_FAILED",
+                "message": f"Failed to retrieve upload file details: {exc.detail}",
+            },
+        ) from exc
+    except Exception as exc:
+        logger.exception("Failed in uploading HR data")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error_code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected server error occurred during HR data upload.",
+            },
+        ) from exc
+
+
+@router.post(
+    "/projects/upload",
+    response_model=IngestionResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_role("ROLE_ECO"))],
+)
 async def upload_project_data(
     file: UploadFile = File(...),
     mapping: Optional[str] = Form(None),
-    db: Session = Depends(get_db)
-):
-    """Manual upload for Project Master Data (Sensitivity)."""
-    contents = await file.read()
-    try:
-        df = parse_file_to_df(file.filename, contents)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    
-    column_mapping = json.loads(mapping) if mapping else None
-    service = ProjectService(db)
-    result = service.ingest_projects(df, column_mapping=column_mapping)
-    return result
+    orchestration_service: DataHubOrchestrationService = Depends(get_orchestration_service),
+) -> IngestionResponse:
+    """Manual upload endpoint for Project Master Data (Sensitivity).
 
-@router.post("/webhooks/s3-ingest")
+    Enforces strict ROLE_ECO role authorization before processing.
+
+    Args:
+        file: The uploaded multipart spreadsheet file.
+        mapping: Optional stringified JSON mapping object for header mapping.
+        orchestration_service: The injected orchestration coordination service.
+
+    Returns:
+        An IngestionResponse DTO showing counts of success/failed rows and details.
+
+    Raises:
+        HTTPException: If ingestion, parsing, or column mapping fails.
+    """
+    strategy = RetrievalStrategyFactory.get_manual_strategy(file)
+    try:
+        result = await orchestration_service.process_manual_upload(
+            strategy=strategy, mapping_str=mapping, target_service_type="projects"
+        )
+        return IngestionResponse(**result)
+    except MappingParseError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "INVALID_MAPPING_FORMAT",
+                "message": f"The column mapping JSON payload is invalid: {exc.detail}",
+            },
+        ) from exc
+    except DataHubRetrievalError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "RETRIEVAL_FAILED",
+                "message": f"Failed to retrieve upload file details: {exc.detail}",
+            },
+        ) from exc
+    except Exception as exc:
+        logger.exception("Failed in uploading project data")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error_code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected server error occurred during Project data upload.",
+            },
+        ) from exc
+
+
+@router.post("/webhooks/s3-ingest", response_model=S3SyncTriggeredResponse, status_code=status.HTTP_200_OK)
 async def s3_webhook_ingest(
     payload: dict,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
-):
-    """Webhook triggered by S3 event to sync HR data."""
-    return {"message": "S3 Sync Triggered"}
+    orchestration_service: DataHubOrchestrationService = Depends(get_orchestration_service),
+) -> S3SyncTriggeredResponse:
+    """Webhook triggered by an S3 notification event to sync HR or Project master records.
+
+    Asynchronously queues a background task to fetch and process the file from S3.
+
+    Args:
+        payload: The raw JSON dictionary containing the S3 event notification payload.
+        background_tasks: The FastAPI BackgroundTasks manager to queue downstream processing.
+        orchestration_service: The injected orchestration coordination service.
+
+    Returns:
+        An S3SyncTriggeredResponse DTO confirming bucket and key names.
+
+    Raises:
+        HTTPException: If the payload is malformed or invalid.
+    """
+    records = payload.get("Records", [])
+    if not records:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "MALFORMED_PAYLOAD",
+                "message": "Malformed S3 event payload: 'Records' list is missing or empty.",
+            },
+        )
+    
+    s3_data = records[0].get("s3", {})
+    bucket_name = s3_data.get("bucket", {}).get("name")
+    object_key = s3_data.get("object", {}).get("key")
+    
+    if not bucket_name or not object_key:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "MALFORMED_PAYLOAD",
+                "message": "Malformed S3 event payload: bucket name or object key is missing.",
+            },
+        )
+    
+    try:
+        background_tasks.add_task(orchestration_service.perform_s3_ingestion, bucket_name, object_key)
+        return S3SyncTriggeredResponse(
+            message="S3 Sync Triggered",
+            bucket=bucket_name,
+            key=object_key,
+        )
+    except IngestionRoutingError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "ROUTING_FAILED",
+                "message": f"S3 event could not be dynamically routed: {exc.detail}",
+            },
+        ) from exc
+    except Exception as exc:
+        logger.exception("Failed in ingesting data from S3")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error_code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected error occurred queueing the S3 webhook task.",
+            },
+        ) from exc
+
+
+@router.get("/sync-status", response_model=SyncStatusResponse, status_code=status.HTTP_200_OK)
+async def get_sync_status(
+    orchestration_service: DataHubOrchestrationService = Depends(get_orchestration_service),
+) -> SyncStatusResponse:
+    """Retrieves the last sync/update timestamps for both personnel and project master profiles.
+
+    Args:
+        orchestration_service: The injected orchestration coordination service.
+
+    Returns:
+        A SyncStatusResponse containing ISO formatting string synchronization dates or None.
+
+    Raises:
+        HTTPException: If query execution fails.
+    """
+    try:
+        status_data = orchestration_service.get_sync_status()
+        return SyncStatusResponse(**status_data)
+    except Exception as exc:
+        logger.exception("Failed in getting sync status")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error_code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected database error occurred retrieving synchronization statuses.",
+            },
+        ) from exc

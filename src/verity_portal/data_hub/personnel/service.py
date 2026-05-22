@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from thefuzz import process
 from src.verity_portal.data_hub.personnel.models import PersonnelModel, CitizenshipStatus
 from src.verity_portal.data_hub.personnel.schemas import PersonnelMasterSchema
-from src.verity_portal.data_hub.core.ingestion import MasterDataIngestor
+from src.verity_portal.data_hub.core.engine import MasterDataIngestor
 
 class PersonnelService:
     def __init__(self, db: Session):
@@ -45,6 +45,16 @@ class PersonnelService:
             # So we rename file_column to system_column
             rename_map = { v: k for k, v in column_mapping.items() if v }
             df = df.rename(columns=rename_map)
+        else:
+            # Auto-map columns if not explicitly provided (e.g. for S3 auto sync)
+            # 1. Generic normalization: lowercase, strip, replace spaces/hyphens with underscores
+            df.columns = df.columns.astype(str).str.strip().str.lower().str.replace(r'[\s\-]+', '_', regex=True)
+            
+            # 2. Specific semantic mappings that simple normalization doesn't catch
+            semantic_mappings = {
+                "citizenship": "citizenship_status"
+            }
+            df = df.rename(columns=semantic_mappings)
 
         # Normalize citizenship column if it exists
         if "citizenship_status" in df.columns:

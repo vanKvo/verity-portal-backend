@@ -1,68 +1,177 @@
-import pandas as pd
-from typing import List, Type, Any, Dict
-from sqlalchemy.orm import Session
-from sqlalchemy import inspect
-from pydantic import BaseModel, ValidationError
+"""Orchestration service for the Data Hub.
+
+This module coordinates master data manual upload workflows, S3 webhook 
+synchronization events, column header parsing, and last-synchronized status queries,
+acting as the single entrypoint for the business logic layer.
+"""
+
+import json
 import logging
+from typing import Any, Dict, List, Optional
+import pandas as pd
+import tempfile
+import os
+from contextlib import contextmanager
+from fastapi import Depends
+from sqlalchemy import func
+from sqlalchemy.orm import Session
+from numbers_parser import Document
+
+from src.verity_portal.core.database import get_db, SessionLocal
+from src.verity_portal.core.email import BaseEmailService, get_email_service
+from src.verity_portal.core.utils.file_utils import parse_file_to_df, extract_headers_from_file
+from src.verity_portal.data_hub.core.retrieval import BaseRetrievalStrategy, RetrievalStrategyFactory
+from src.verity_portal.data_hub.exceptions import IngestionRoutingError
+from src.verity_portal.data_hub.personnel.models import PersonnelModel
+from src.verity_portal.data_hub.personnel.service import PersonnelService
+from src.verity_portal.data_hub.projects.models import ProjectModel
+from src.verity_portal.data_hub.projects.service import ProjectService
+from src.verity_portal.data_hub.exceptions import MappingParseError
 
 logger = logging.getLogger(__name__)
 
-class MasterDataIngestor:
-    """Generic engine for ingesting master data from DataFrames into SQLAlchemy models."""
 
-    def __init__(self, db: Session, model: Any, schema: Type[BaseModel], unique_key: str = "employee_id"):
-        self.db = db
-        self.model = model
-        self.schema = schema
-        self.unique_key = unique_key
+class DataHubOrchestrationService:
+    """Orchestrates ingestion coordination, data parsing, and dynamic domain routing."""
 
-    def ingest(self, df: pd.DataFrame) -> Dict[str, Any]:
-        """Validates and ingests the data in bulk.
-        
-        Returns a summary of the ingestion process.
+    def __init__(self, db: Session, email_service: Optional[BaseEmailService] = None) -> None:
+        """Initializes the orchestration service with a database session wrapper.
+
+        Args:
+            db: The active database session.
+            email_service: Optional custom email alerting service conforming to BaseEmailService.
         """
-        success_count = 0
-        errors = []
+        self.db: Session = db
+        self.email_service: BaseEmailService = email_service or get_email_service()
 
-        # Convert DF to records for validation
-        records = df.to_dict(orient="records")
+    async def extract_headers(self, strategy: BaseRetrievalStrategy) -> List[str]:
+        """Business logic to pull clean column fields out of an inbound file strategy.
+
+        Args:
+            strategy: The active manual upload or S3 retrieval strategy.
+
+        Returns:
+            A list of clean column header strings.
+
+        Raises:
+            ValueError: If a numbers spreadsheet table structure is empty.
+        """
+        stream: Any = await strategy.retrieve_stream()
+        return extract_headers_from_file(strategy.filename, stream)
+
+    async def process_manual_upload(
+        self, 
+        strategy: BaseRetrievalStrategy, 
+        mapping_str: Optional[str], 
+        target_service_type: str
+    ) -> Dict[str, Any]:
+        """Parses and executes targeted personnel or project manual data mapping workflows.
+
+        Args:
+            strategy: The active manual upload retrieval strategy.
+            mapping_str: Optional JSON mapping string supplied by the frontend.
+            target_service_type: Either 'personnel' or 'projects' to indicate target.
+
+        Returns:
+            A results summary dictionary with counts of successful and failed rows.
+
+        Raises:
+            ValueError: If an invalid target service type is requested.
+        """
+        stream: Any = await strategy.retrieve_stream()
+        df: pd.DataFrame = parse_file_to_df(strategy.filename, stream)
+        try:
+            column_mapping: Optional[Dict[str, str]] = json.loads(mapping_str) if mapping_str else None
+        except json.JSONDecodeError as exc:
+            raise MappingParseError(str(exc)) from exc
         
-        for index, record in enumerate(records):
-            try:
-                # Use a savepoint (sub-transaction) for each row.
-                with self.db.begin_nested():
-                    # 1. Validate against Pydantic schema
-                    validated_data = self.schema(**record)
-                    
-                    # 2. Check for existing record to perform UPSERT
-                    existing_record = self.db.query(self.model).filter(
-                        getattr(self.model, self.unique_key) == getattr(validated_data, self.unique_key)
-                    ).first()
+        if target_service_type == "personnel":
+            return PersonnelService(self.db).ingest_personnel_roster(df, column_mapping=column_mapping)
+        elif target_service_type == "projects":
+            return ProjectService(self.db).ingest_projects(df, column_mapping=column_mapping)
+        else:
+            raise ValueError(f"Invalid target service type: {target_service_type}")
 
-                    if existing_record:
-                        # Update existing
-                        for key, value in validated_data.model_dump().items():
-                            setattr(existing_record, key, value)
-                    else:
-                        # Create new
-                        new_record = self.model(**validated_data.model_dump())
-                        self.db.add(new_record)
-                    
-                    # Flush inside the savepoint to catch DB errors immediately for this row
-                    self.db.flush()
-                    success_count += 1
-
-            except ValidationError as e:
-                err_details = "; ".join([f"{err['loc'][0]}: {err['msg']}" for err in e.errors()])
-                errors.append({"row": index + 2, "error": f"Validation Error: {err_details}"})
-            except Exception as e:
-                errors.append({"row": index + 2, "error": f"Database Error: {str(e)}"})
-                logger.error(f"Error ingesting row {index}: {e}")
-
-        self.db.commit()
+    async def perform_s3_ingestion(self, bucket_name: str, object_key: str) -> None:
+        """Orchestrates file streaming, database routing, and failure notification for S3 webhooks."""
+        logger.info(f"Starting background S3 ingestion processing for s3://{bucket_name}/{object_key}")
         
+        try:
+            # 1. Isolate streaming and parsing
+            strategy: BaseRetrievalStrategy = RetrievalStrategyFactory.get_s3_strategy(bucket_name, object_key)
+            stream: Any = await strategy.retrieve_stream()
+            df: pd.DataFrame = parse_file_to_df(strategy.filename, stream)
+            
+            # 2. Leverage an isolated session context manager (Refactored logic below)
+            with self._get_db_session_ctx() as db_session:
+                key_lower = object_key.lower()
+                
+                # 3. Streamlined routing logic
+                if any(term in key_lower for term in ["personnel", "hr"]):
+                    result = PersonnelService(db_session).ingest_personnel_roster(df)
+                    logger.info(f"S3 Ingestion completed for Personnel: {result}")
+                elif "project" in key_lower:
+                    result = ProjectService(db_session).ingest_projects(df)
+                    logger.info(f"S3 Ingestion completed for Projects: {result}")
+                else:
+                    raise IngestionRoutingError(
+                        filename=object_key,
+                        detail="S3 object key must contain 'hr', 'personnel', or 'project' to route correctly."
+                    )
+                    
+        except Exception as exc:
+            self._handle_ingestion_failure(bucket_name, object_key, exc)
+            raise exc
+
+    # --- Supporting Helper Methods to decompose the class responsibility ---
+
+    @contextmanager
+    def _get_db_session_ctx(self):
+        """Context manager isolating the test vs. production DB lifecycle logic."""
+        use_new_session = True
+        try:
+            if self.db and self.db.bind and self.db.bind.dialect.name == "sqlite":
+                use_new_session = False
+        except Exception as e:
+            logger.error(f"Failed to check the current session: {e}")
+
+        session = SessionLocal() if use_new_session else self.db
+        try:
+            yield session
+        finally:
+            if use_new_session:
+                session.close()
+
+    def _handle_ingestion_failure(self, bucket: str, key: str, exc: Exception) -> None:
+        """Handles reporting and asynchronous alert notifications for visibility."""
+        subject = f"ALERT: Data Hub S3 Ingestion Failure"
+        body = (
+            f"An error occurred during S3 ingestion processing.\n\n"
+            f"S3 URI: s3://{bucket}/{key}\n"
+            f"Error Details: {str(exc)}\n\n"
+            f"Please review the system logs to diagnose and resolve this issue."
+        )
+        try:
+            self.email_service.send_alert(subject, body)
+        except Exception as email_err:
+            logger.error(f"Failed to publish ingestion error notification: {email_err}")
+
+    def get_sync_status(self) -> Dict[str, Optional[str]]:
+        """Retrieves the last sync/update ISO formatted timestamps for master records.
+
+        Returns:
+            A dictionary containing personnel and project last sync markers in ISO string
+            format, or None if no synchronization timestamps exist in the database.
+        """
+        personnel_last: Any = self.db.query(func.max(PersonnelModel.updated_at)).scalar()
+        projects_last: Any = self.db.query(func.max(ProjectModel.updated_at)).scalar()
+
         return {
-            "success_count": success_count,
-            "error_count": len(errors),
-            "errors": errors[:20]  # Return first 20 errors for feedback
+            "personnel_last_sync": personnel_last.isoformat() if personnel_last else None,
+            "projects_last_sync": projects_last.isoformat() if projects_last else None
         }
+
+
+def get_orchestration_service(db: Session = Depends(get_db)) -> DataHubOrchestrationService:
+    """FastAPI Dependency injector that constructs and returns the DataHubOrchestrationService."""
+    return DataHubOrchestrationService(db)
