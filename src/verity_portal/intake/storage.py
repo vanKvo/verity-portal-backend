@@ -7,19 +7,19 @@ from pathlib import Path
 class StoragePort(ABC):
     @abstractmethod
     async def save_file(self, file_content: bytes, job_id: uuid.UUID, filename: str, subfolder: str = "staging") -> str:
-        pass
+        """Saves a file's binary content to the underlying storage system."""
 
     @abstractmethod
     async def get_file(self, file_path: str) -> bytes:
-        pass
+        """Retrieves and returns the binary content of a file from the specified storage path."""
 
     @abstractmethod
     async def delete_file(self, file_path: str) -> bool:
-        pass
+        """Deletes a file from the storage system. Returns True if successful, False otherwise."""
 
     @abstractmethod
     async def move_file(self, source_path: str, target_subfolder: str) -> str:
-        pass
+        """Moves an existing file to a different target subfolder within storage."""
 
 class LocalFileSystemAdapter(StoragePort):
     def __init__(self, base_path: str = "storage"):

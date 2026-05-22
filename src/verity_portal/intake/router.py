@@ -1,9 +1,11 @@
-from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status
-from typing import List, Dict, Optional
 import uuid
 import io
 import os
 import pandas as pd
+import logging
+
+from fastapi import APIRouter, UploadFile, File, Depends, HTTPException, status
+
 from sqlalchemy.orm import Session
 from src.verity_portal.core.database import get_db
 from src.verity_portal.intake.storage import LocalFileSystemAdapter
@@ -11,8 +13,10 @@ from src.verity_portal.intake.service import IntakeService
 from src.verity_portal.intake.mapper import suggest_mappings
 from src.verity_portal.intake.schemas import ConfirmMappingRequest, UploadResponse
 from src.verity_portal.core.exceptions import MappingError
+from src.verity_portal.core.utils.file_utils import extract_headers_from_file
 
 router = APIRouter(prefix="/intake", tags=["Data Intake"])
+logger = logging.getLogger(__name__)
 
 def get_intake_service(db: Session = Depends(get_db)):
     storage_adapter = LocalFileSystemAdapter()
@@ -38,15 +42,8 @@ async def upload_file(
         file_id = await intake_service.ingest_file(content, job_id, file.filename)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=str(e))
-
-    headers = []
     try:
-        if ext.lower() == ".csv":
-            df = pd.read_csv(io.BytesIO(content), nrows=0)
-            headers = df.columns.tolist()
-        else:
-            df = pd.read_excel(io.BytesIO(content), nrows=0)
-            headers = df.columns.tolist()
+        headers = extract_headers_from_file(file.filename, io.BytesIO(content))
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Could not parse file: {str(e)}")
 
@@ -87,7 +84,6 @@ async def confirm_mapping(
         return {"status": "success", "records_ingested": count}
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
-    except MappingError:
-        raise 
     except Exception as e:
+        logger.error(f"Unhandled error in comfirm_mapping: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

@@ -7,7 +7,8 @@ from src.verity_portal.intake.router import router as intake_router
 from src.verity_portal.audit.router import router as audit_router
 from src.verity_portal.itar.router import router as itar_router
 from src.verity_portal.data_hub.router import router as data_hub_router
-from src.verity_portal.core.exceptions import MappingError, ComplianceError
+from src.verity_portal.core.exceptions import MappingError
+from src.verity_portal.audit.exceptions import ComplianceError
 
 settings = get_settings()
 
