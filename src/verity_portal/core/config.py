@@ -8,10 +8,10 @@ class Settings(BaseSettings):
     DEBUG: bool = False
     
     # Database
-    DATABASE_URL: str = Field(..., description="Postgres connection string")
+    DATABASE_URL: str = Field(default="postgresql://user:password@localhost:5432/verity_db", description="Postgres connection string")
     
     # Security
-    SECRET_KEY: str = Field(..., description="Secret key for JWT signing")
+    SECRET_KEY: str = Field(default="dev-secret-key-change-in-production", description="Secret key for JWT signing")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     
@@ -19,10 +19,15 @@ class Settings(BaseSettings):
     ALLOWED_DOMAINS: str = Field(default="corporate.com,verity.com")
 
     # CORS Origins whitelisting
-    ALLOWED_ORIGINS: str = Field(default="http://localhost:4200")
+    ALLOWED_ORIGINS: str = Field(...)
 
     # AWS Configuration
     S3_HR_BUCKET_NAME: str = Field(..., description="S3 bucket for HR personnel data")
+    AWS_ACCESS_KEY_ID: str = Field(..., description="AWS Access Key ID")
+    AWS_SECRET_ACCESS_KEY: str = Field(..., description="AWS Secret Access Key")
+    AWS_DEFAULT_REGION: str = Field(..., description="AWS Default Region")
+    S3_ENDPOINT_URL: str | None = Field(default=None, description="S3 Endpoint URL (e.g. MinIO/LocalStack)")
+    AWS_SNS_TOPIC_ARN: str | None = Field(default=None, description="AWS SNS Topic ARN for administrator email alerts")
 
     @property
     def allowed_domains_list(self) -> list[str]:
