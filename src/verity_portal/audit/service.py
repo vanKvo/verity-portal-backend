@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Dict, Any
-from src.verity_portal.core.exceptions import AuditDataInconsistencyError
+from src.verity_portal.audit.exceptions import AuditDataInconsistencyError
 
 def audit_leaver_mover(hr_records: List[Dict[str, Any]], access_records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """

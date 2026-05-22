@@ -6,7 +6,7 @@ from src.verity_portal.audit.service import audit_leaver_mover
 from src.verity_portal.audit.exporter import generate_audit_csv, generate_audit_pdf
 from src.verity_portal.intake.router import get_intake_service
 from src.verity_portal.intake.service import IntakeService
-from src.verity_portal.core.exceptions import ComplianceError
+from src.verity_portal.audit.exceptions import ComplianceError
 
 router = APIRouter(prefix="/audit", tags=["Compliance Audit"])
 
@@ -32,9 +32,9 @@ async def run_leaver_mover_audit(
         return {"violations": violations}
         
     except ComplianceError as e:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e)) from e
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 @router.post("/export/csv")
 async def export_audit_csv(violations: List[Dict[str, Any]]):
@@ -46,7 +46,7 @@ async def export_audit_csv(violations: List[Dict[str, Any]]):
             headers={"Content-Disposition": "attachment; filename=audit_export.csv"}
         )
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
 
 @router.post("/export/pdf")
 async def export_audit_pdf(violations: List[Dict[str, Any]]):
@@ -58,4 +58,4 @@ async def export_audit_pdf(violations: List[Dict[str, Any]]):
             headers={"Content-Disposition": "attachment; filename=audit_report.pdf"}
         )
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
