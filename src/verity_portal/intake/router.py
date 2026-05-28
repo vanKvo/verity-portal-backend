@@ -13,7 +13,7 @@ from src.verity_portal.intake.service import IntakeService
 from src.verity_portal.intake.mapper import suggest_mappings
 from src.verity_portal.intake.schemas import ConfirmMappingRequest, UploadResponse
 from src.verity_portal.core.exceptions import MappingError
-from src.verity_portal.core.utils.file_utils import extract_headers_from_file
+from src.verity_portal.core.file_parser import extract_headers_from_file
 
 router = APIRouter(prefix="/intake", tags=["Data Intake"])
 logger = logging.getLogger(__name__)

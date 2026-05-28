@@ -19,13 +19,17 @@ from numbers_parser import Document
 
 from src.verity_portal.core.database import get_db, SessionLocal
 from src.verity_portal.core.email import BaseEmailService, get_email_service
-from src.verity_portal.core.utils.file_utils import parse_file_to_df, extract_headers_from_file
+from src.verity_portal.core.file_parser import parse_file_to_df, extract_headers_from_file
 from src.verity_portal.data_hub.core.retrieval import BaseRetrievalStrategy, RetrievalStrategyFactory
 from src.verity_portal.data_hub.exceptions import IngestionRoutingError
 from src.verity_portal.data_hub.personnel.models import PersonnelModel
 from src.verity_portal.data_hub.personnel.service import PersonnelService
 from src.verity_portal.data_hub.projects.models import ProjectModel
 from src.verity_portal.data_hub.projects.service import ProjectService
+from src.verity_portal.data_hub.procurement.models import ProcurementModel
+from src.verity_portal.data_hub.procurement.service import ProcurementService
+from src.verity_portal.data_hub.inventory.models import InventoryModel
+from src.verity_portal.data_hub.inventory.service import InventoryService
 from src.verity_portal.data_hub.exceptions import MappingParseError
 
 logger = logging.getLogger(__name__)
@@ -89,6 +93,10 @@ class DataHubOrchestrationService:
             return PersonnelService(self.db).ingest_personnel_roster(df, column_mapping=column_mapping)
         elif target_service_type == "projects":
             return ProjectService(self.db).ingest_projects(df, column_mapping=column_mapping)
+        elif target_service_type == "procurement":
+            return ProcurementService(self.db).ingest_master_data(df, column_mapping=column_mapping)
+        elif target_service_type == "inventory":
+            return InventoryService(self.db).ingest_master_data(df, column_mapping=column_mapping)
         else:
             raise ValueError(f"Invalid target service type: {target_service_type}")
 
@@ -110,13 +118,24 @@ class DataHubOrchestrationService:
                 if any(term in key_lower for term in ["personnel", "hr"]):
                     result = PersonnelService(db_session).ingest_personnel_roster(df)
                     logger.info(f"S3 Ingestion completed for Personnel: {result}")
-                elif "project" in key_lower:
+                elif any(term in key_lower for term in ["project", "projects"]):
                     result = ProjectService(db_session).ingest_projects(df)
                     logger.info(f"S3 Ingestion completed for Projects: {result}")
+                elif any(term in key_lower for term in ["procurement"]):
+                    result = ProcurementService(db_session).ingest_master_data(df)
+                    logger.info(f"S3 Ingestion completed for Procurement: {result}")
+                elif any(term in key_lower for term in ["it_inventory", "it_asset", "it_assets"]):
+                    result = InventoryService(db_session).ingest_master_data(df)
+                    logger.info(f"S3 Ingestion completed for IT Inventory: {result}")
                 else:
                     raise IngestionRoutingError(
                         filename=object_key,
-                        detail="S3 object key must contain 'hr', 'personnel', or 'project' to route correctly."
+                        detail = "\n".join([
+                                "The document title must contain:",
+                                "- 'hr' or 'personnel' for HR master record",
+                                "- 'project' or 'projects' for Project Assignments",
+                                "- 'procurement' for Procurement Data",
+                                "- 'it_inventory', 'it_assets' or 'it_asset' for IT Hardware Inventory"])      
                     )
                     
         except Exception as exc:
@@ -165,10 +184,14 @@ class DataHubOrchestrationService:
         """
         personnel_last: Any = self.db.query(func.max(PersonnelModel.updated_at)).scalar()
         projects_last: Any = self.db.query(func.max(ProjectModel.updated_at)).scalar()
+        procurement_last: Any = self.db.query(func.max(ProcurementModel.updated_at)).scalar()
+        inventory_last: Any = self.db.query(func.max(InventoryModel.updated_at)).scalar()
 
         return {
             "personnel_last_sync": personnel_last.isoformat() if personnel_last else None,
-            "projects_last_sync": projects_last.isoformat() if projects_last else None
+            "projects_last_sync": projects_last.isoformat() if projects_last else None,
+            "procurement_last_sync": procurement_last.isoformat() if procurement_last else None,
+            "inventory_last_sync": inventory_last.isoformat() if inventory_last else None
         }
 
 

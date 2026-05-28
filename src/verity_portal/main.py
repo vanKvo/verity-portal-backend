@@ -7,6 +7,7 @@ from src.verity_portal.intake.router import router as intake_router
 from src.verity_portal.audit.router import router as audit_router
 from src.verity_portal.itar.router import router as itar_router
 from src.verity_portal.data_hub.router import router as data_hub_router
+from src.verity_portal.asset_audit.router import router as asset_audit_router
 from src.verity_portal.core.exceptions import MappingError
 from src.verity_portal.audit.exceptions import ComplianceError
 
@@ -46,6 +47,7 @@ app.include_router(intake_router)
 app.include_router(audit_router)
 app.include_router(itar_router)
 app.include_router(data_hub_router)
+app.include_router(asset_audit_router)
 
 @app.get("/health")
 async def health_check():

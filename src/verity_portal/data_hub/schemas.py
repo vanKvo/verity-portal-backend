@@ -75,3 +75,11 @@ class SyncStatusResponse(BaseModel):
         None, 
         description="ISO 8601 formatted date-time string of the last updated projects master record, or None."
     )
+    procurement_last_sync: Optional[str] = Field(
+        None, 
+        description="ISO 8601 formatted date-time string of the last updated procurement record, or None."
+    )
+    inventory_last_sync: Optional[str] = Field(
+        None, 
+        description="ISO 8601 formatted date-time string of the last updated inventory master record, or None."
+    )

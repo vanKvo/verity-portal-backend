@@ -61,6 +61,6 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 @router.post("/guest-login", response_model=Token)
 def guest_login():
     # Injecting granular roles for demo purposes as part of Phase 6 rollout
-    roles = ["guest", "ROLE_HR", "ROLE_PM", "ROLE_ECO"]
+    roles = ["guest", "ROLE_HR", "ROLE_PM", "ROLE_ECO", "ROLE_FINANCE", "ROLE_IT"]
     access_token = create_access_token(data={"sub": "guest@verity.com", "roles": roles})
     return {"access_token": access_token, "token_type": "bearer", "roles": roles}

@@ -18,6 +18,9 @@ from src.verity_portal.intake.models import FileMetadataModel, IntakeRecordModel
 from src.verity_portal.data_hub.personnel.models import PersonnelModel
 from src.verity_portal.data_hub.projects.models import ProjectModel
 from src.verity_portal.itar.models import ProjectAssignmentModel, ComplianceViolationModel
+from src.verity_portal.data_hub.procurement.models import ProcurementModel
+from src.verity_portal.data_hub.inventory.models import InventoryModel
+from src.verity_portal.asset_audit.models import AssetViolationModel
 
 settings = get_settings()
 

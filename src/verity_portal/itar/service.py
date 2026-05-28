@@ -8,7 +8,7 @@ from src.verity_portal.data_hub.personnel.models import PersonnelModel, Citizens
 from src.verity_portal.data_hub.projects.models import ProjectModel, ProjectSensitivity
 from src.verity_portal.itar.models import ProjectAssignmentModel, ComplianceViolationModel
 from src.verity_portal.itar.exceptions import ITARMappingError
-from src.verity_portal.core.utils.file_utils import parse_file_to_df
+from src.verity_portal.core.file_parser import parse_file_to_df
 
 logger = logging.getLogger(__name__)
 

@@ -190,6 +190,124 @@ async def upload_project_data(
         ) from exc
 
 
+@router.post(
+    "/procurement/upload",
+    response_model=IngestionResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_role("ROLE_FINANCE"))],
+)
+async def upload_procurement_data(
+    file: UploadFile = File(...),
+    mapping: Optional[str] = Form(None),
+    orchestration_service: DataHubOrchestrationService = Depends(get_orchestration_service),
+) -> IngestionResponse:
+    """Manual upload endpoint for Procurement PO Data.
+
+    Enforces strict ROLE_FINANCE role authorization before processing.
+
+    Args:
+        file: The uploaded multipart spreadsheet file.
+        mapping: Optional stringified JSON mapping object for header mapping.
+        orchestration_service: The injected orchestration coordination service.
+
+    Returns:
+        An IngestionResponse DTO showing counts of success/failed rows and details.
+
+    Raises:
+        HTTPException: If ingestion, parsing, or column mapping fails.
+    """
+    strategy = RetrievalStrategyFactory.get_manual_strategy(file)
+    try:
+        result = await orchestration_service.process_manual_upload(
+            strategy=strategy, mapping_str=mapping, target_service_type="procurement"
+        )
+        return IngestionResponse(**result)
+    except MappingParseError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "INVALID_MAPPING_FORMAT",
+                "message": f"The column mapping JSON payload is invalid: {exc.detail}",
+            },
+        ) from exc
+    except DataHubRetrievalError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "RETRIEVAL_FAILED",
+                "message": f"Failed to retrieve upload file details: {exc.detail}",
+            },
+        ) from exc
+    except Exception as exc:
+        logger.exception("Failed in uploading procurement data")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error_code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected server error occurred during Procurement data upload.",
+            },
+        ) from exc
+
+
+@router.post(
+    "/inventory/upload",
+    response_model=IngestionResponse,
+    status_code=status.HTTP_200_OK,
+    dependencies=[Depends(require_role("ROLE_IT"))],
+)
+async def upload_inventory_data(
+    file: UploadFile = File(...),
+    mapping: Optional[str] = Form(None),
+    orchestration_service: DataHubOrchestrationService = Depends(get_orchestration_service),
+) -> IngestionResponse:
+    """Manual upload endpoint for IT Inventory Data.
+
+    Enforces strict ROLE_IT role authorization before processing.
+
+    Args:
+        file: The uploaded multipart spreadsheet file.
+        mapping: Optional stringified JSON mapping object for header mapping.
+        orchestration_service: The injected orchestration coordination service.
+
+    Returns:
+        An IngestionResponse DTO showing counts of success/failed rows and details.
+
+    Raises:
+        HTTPException: If ingestion, parsing, or column mapping fails.
+    """
+    strategy = RetrievalStrategyFactory.get_manual_strategy(file)
+    try:
+        result = await orchestration_service.process_manual_upload(
+            strategy=strategy, mapping_str=mapping, target_service_type="inventory"
+        )
+        return IngestionResponse(**result)
+    except MappingParseError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "INVALID_MAPPING_FORMAT",
+                "message": f"The column mapping JSON payload is invalid: {exc.detail}",
+            },
+        ) from exc
+    except DataHubRetrievalError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "RETRIEVAL_FAILED",
+                "message": f"Failed to retrieve upload file details: {exc.detail}",
+            },
+        ) from exc
+    except Exception as exc:
+        logger.exception("Failed in uploading inventory data")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error_code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected server error occurred during IT Inventory data upload.",
+            },
+        ) from exc
+
+
 @router.post("/webhooks/s3-ingest", response_model=S3SyncTriggeredResponse, status_code=status.HTTP_200_OK)
 async def s3_webhook_ingest(
     payload: dict,
