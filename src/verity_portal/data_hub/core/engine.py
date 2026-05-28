@@ -1,16 +1,18 @@
 """Core ingestion engine for the Data Hub.
 
 This module provides generic low-level data parsing and transactional bulk 
-ingestion tools to convert Pandas DataFrames into database records, 
-ensuring modularity and strict boundary separation.
+Ingestion tools to convert Pandas DataFrames into database records, 
+Ensuring modularity and strict boundary separation.
 """
 
 import logging
+import uuid
 from typing import Any, Dict, Type, List
 import pandas as pd
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.exc import IntegrityError
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +47,7 @@ class MasterDataIngestor:
         """Validates and transactionalizes bulk DataFrame records.
 
         Validates records against the Pydantic schema individually. Performs
-        efficient UPSERTs and logs row-by-row failures using database savepoints.
+        Efficient UPSERTs and logs row-by-row failures using database savepoints.
 
         Args:
             df: The inbound processed pandas DataFrame.
@@ -89,9 +91,38 @@ class MasterDataIngestor:
             except ValidationError as e:
                 err_details: str = "; ".join([f"{err['loc'][0]}: {err['msg']}" for err in e.errors()])
                 errors.append({"row": index + 2, "error": f"Validation Error: {err_details}"})
+            except IntegrityError as e:
+                # Capture and sanitize database integrity errors (Foreign Key, Unique constraints)
+                error_msg = str(e.orig).lower() if e.orig else ""
+                
+                if "foreign key" in error_msg or "violates foreign key" in error_msg:
+                    user_error = "Database integrity violation: Associated relation or reference key not found."
+                elif "unique" in error_msg or "duplicate key" in error_msg:
+                    user_error = "Database integrity violation: A record with this unique identifier already exists."
+                else:
+                    user_error = "Database integrity violation: Inbound data fails to satisfy database constraints."
+                
+                # Generate correlation ID for security auditing
+                correlation_id = uuid.uuid4().hex[:8].upper()
+                logger.error(
+                    f"IntegrityError on row {index} (Ref: ERR-INT-{correlation_id}): {e}",
+                    exc_info=True
+                )
+                errors.append({
+                    "row": index + 2, 
+                    "error": f"{user_error} (Reference ID: ERR-INT-{correlation_id})"
+                })
             except Exception as e:
-                errors.append({"row": index + 2, "error": f"Exception for ingesting data: {str(e)}"})
-                logger.error(f"Error ingesting row {index}: {e}")
+                # General catch-all: Completely redact raw system errors to protect table structure
+                correlation_id = uuid.uuid4().hex[:8].upper()
+                logger.error(
+                    f"Unexpected ingestion failure on row {index} (Ref: ERR-SYS-{correlation_id}): {e}", 
+                    exc_info=True
+                )
+                errors.append({
+                    "row": index + 2, 
+                    "error": f"Internal database error occurred. (Reference ID: ERR-SYS-{correlation_id})"
+                })
 
         self.db.commit()
         
