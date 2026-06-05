@@ -7,6 +7,7 @@ from src.verity_portal.core.database import Base
 class AssetViolationType(str, enum.Enum):
     GHOST_ASSET = "GHOST_ASSET"
     WASTED_SPEND = "WASTED_SPEND"
+    UNRECOVERED_ASSET = "UNRECOVERED_ASSET"
 
 class AssetViolationStatus(str, enum.Enum):
     OPEN = "OPEN"

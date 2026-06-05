@@ -2,41 +2,43 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from src.verity_portal.core.database import get_db
 from src.verity_portal.core.security.roles import require_role
-from src.verity_portal.asset_audit.models import AssetViolationModel, AssetViolationStatus
+from src.verity_portal.asset_audit.schemas import AssetViolationSchema, ResolveViolationRequest
+from src.verity_portal.asset_audit.service import AssetAuditService
+from typing import List
 
 router = APIRouter(prefix="/asset-audit", tags=["Asset Audit"])
 
-@router.get("/violations", status_code=status.HTTP_200_OK)
+@router.get("/violations", response_model=List[AssetViolationSchema], status_code=status.HTTP_200_OK)
 async def get_asset_violations(
     skip: int = 0,
     limit: int = 100,
     db: Session = Depends(get_db),
-    # Temporarily skipping complex RBAC OR logic by allowing anyone who reaches this endpoint 
-    # (assuming it's protected at a higher level or just using ROLE_FINANCE for now to get it working)
+    # Protect with finance auditor role verification
     _ = Depends(require_role("ROLE_FINANCE")),
 ):
-    """Retrieves paginated audit violations."""
-    violations = db.query(AssetViolationModel).order_by(AssetViolationModel.created_at.desc()).offset(skip).limit(limit).all()
-    return violations
+    """Retrieves paginated audit violations with enriched metadata."""
+    return AssetAuditService.get_violations(db, skip=skip, limit=limit)
 
 @router.post("/violations/{violation_id}/resolve", status_code=status.HTTP_200_OK)
 async def resolve_asset_violation(
     violation_id: str,
-    payload: dict,
+    payload: ResolveViolationRequest,
     db: Session = Depends(get_db),
     _ = Depends(require_role("ROLE_FINANCE")),
 ):
     """Resolves an open financial anomaly. Restricted to ROLE_FINANCE."""
-    violation = db.query(AssetViolationModel).filter_by(id=violation_id).first()
-    if not violation:
-        raise HTTPException(status_code=404, detail="Violation not found")
-        
-    reason = payload.get("resolution_reason")
-    if not reason:
-        raise HTTPException(status_code=400, detail="resolution_reason is required")
-        
-    violation.status = AssetViolationStatus.RESOLVED
-    violation.resolution_reason = reason
-    db.commit()
-    
+    resolved = AssetAuditService.resolve_violation(
+        db, 
+        violation_id=violation_id, 
+        reason=payload.resolution_reason
+    )
+    if not resolved:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error_code": "VIOLATION_NOT_FOUND",
+                "message": "The requested compliance anomaly or violation could not be located.",
+            },
+        )
     return {"message": "Violation resolved successfully"}
+

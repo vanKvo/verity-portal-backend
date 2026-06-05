@@ -15,6 +15,13 @@ class AssetViolationSchema(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    # Enriched IT Inventory & Procurement details
+    assigned_employee_id: Optional[str] = None
+    inventory_status: Optional[str] = None
+    physical_location_site: Optional[str] = None
+    physical_location_room: Optional[str] = None
+    procurement_status: Optional[str] = None
+
     class Config:
         from_attributes = True
 

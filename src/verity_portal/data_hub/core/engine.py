@@ -59,7 +59,14 @@ class MasterDataIngestor:
         errors: List[Dict[str, Any]] = []
 
         # Convert DF to records for validation
-        records: List[Dict[str, Any]] = df.to_dict(orient="records")
+        raw_records: List[Dict[str, Any]] = df.to_dict(orient="records")
+        records: List[Dict[str, Any]] = []
+        for rec in raw_records:
+            cleaned_rec = {
+                k: (None if pd.isna(v) else v)
+                for k, v in rec.items()
+            }
+            records.append(cleaned_rec)
         
         for index, record in enumerate(records):
             try:

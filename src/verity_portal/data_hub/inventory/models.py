@@ -7,6 +7,7 @@ class AssetStatus(str, enum.Enum):
     IN_USE = "IN_USE"
     RETIRED = "RETIRED"
     LOST = "LOST"
+    STORAGE = "STORAGE"
 
 class InventoryModel(Base):
     __tablename__ = "inventory"
@@ -18,9 +19,11 @@ class InventoryModel(Base):
     assigned_employee_id = Column(String(50), ForeignKey("verity.personnel.employee_id"), nullable=True)
     status = Column(
         SqlEnum(AssetStatus),
-        default=AssetStatus.IN_USE,
+        default=AssetStatus.STORAGE,
         nullable=False
     )
+    physical_location_site = Column(String(100), nullable=True)
+    physical_location_room = Column(String(100), nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

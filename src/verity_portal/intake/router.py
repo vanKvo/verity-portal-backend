@@ -28,7 +28,7 @@ async def upload_file(
     file: UploadFile = File(...),
     intake_service: IntakeService = Depends(get_intake_service)
 ):
-    allowed_extensions = {".csv", ".xlsx", ".xls"}
+    allowed_extensions = {".csv", ".xlsx", ".xls", ".numbers"}
     _, ext = os.path.splitext(file.filename)
     if ext.lower() not in allowed_extensions:
         raise HTTPException(

@@ -6,6 +6,7 @@ from typing import Dict
 from sqlalchemy.orm import Session
 from src.verity_portal.intake.storage import StoragePort
 from src.verity_portal.intake.models import FileMetadataModel, IntakeRecordModel
+from src.verity_portal.core.file_parser import parse_file_to_df
 
 class IntakeService:
     def __init__(self, storage_port: StoragePort, db: Session):
@@ -48,12 +49,9 @@ class IntakeService:
             raise ValueError("No file found for this job ID")
             
         content = await self.storage_port.get_file(file_metadata.storage_path)
-        _, ext = os.path.splitext(file_metadata.original_name)
         
-        if ext.lower() == ".csv":
-            df = pd.read_csv(io.BytesIO(content))
-        else:
-            df = pd.read_excel(io.BytesIO(content))
+        # Use centralized parser to cleanly support .numbers, .csv, and Excel formats
+        df = parse_file_to_df(file_metadata.original_name, io.BytesIO(content))
             
         # Filter out empty or null mappings to avoid artifacts like '': NaN
         active_mappings = {k: v for k, v in mappings.items() if k and v}

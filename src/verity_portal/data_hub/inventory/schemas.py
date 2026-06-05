@@ -8,6 +8,8 @@ class InventorySchema(BaseModel):
     po_number: Optional[str] = Field(None, max_length=100)
     serial_number: Optional[str] = Field(None, max_length=100)
     assigned_employee_id: Optional[str] = Field(None, max_length=50)
-    status: AssetStatus = Field(default=AssetStatus.IN_USE)
+    status: AssetStatus = Field(default=AssetStatus.STORAGE)
+    physical_location_site: Optional[str] = Field(None, max_length=100)
+    physical_location_room: Optional[str] = Field(None, max_length=100)
 
     model_config = ConfigDict(from_attributes=True)

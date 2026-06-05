@@ -94,9 +94,13 @@ class DataHubOrchestrationService:
         elif target_service_type == "projects":
             return ProjectService(self.db).ingest_projects(df, column_mapping=column_mapping)
         elif target_service_type == "procurement":
-            return ProcurementService(self.db).ingest_master_data(df, column_mapping=column_mapping)
+            res = ProcurementService(self.db).ingest_master_data(df, column_mapping=column_mapping)
+            self._trigger_it_po_reconciliation_audit()
+            return res
         elif target_service_type == "inventory":
-            return InventoryService(self.db).ingest_master_data(df, column_mapping=column_mapping)
+            res = InventoryService(self.db).ingest_master_data(df, column_mapping=column_mapping)
+            self._trigger_it_po_reconciliation_audit()
+            return res
         else:
             raise ValueError(f"Invalid target service type: {target_service_type}")
 
@@ -124,9 +128,11 @@ class DataHubOrchestrationService:
                 elif any(term in key_lower for term in ["procurement"]):
                     result = ProcurementService(db_session).ingest_master_data(df)
                     logger.info(f"S3 Ingestion completed for Procurement: {result}")
+                    self._trigger_reconciliation_audit(db_session)
                 elif any(term in key_lower for term in ["it_inventory", "it_asset", "it_assets"]):
                     result = InventoryService(db_session).ingest_master_data(df)
                     logger.info(f"S3 Ingestion completed for IT Inventory: {result}")
+                    self._trigger_reconciliation_audit(db_session)
                 else:
                     raise IngestionRoutingError(
                         filename=object_key,
@@ -174,6 +180,29 @@ class DataHubOrchestrationService:
             self.email_service.send_alert(subject, body)
         except Exception as email_err:
             logger.error(f"Failed to publish ingestion error notification: {email_err}")
+
+    def _trigger_it_po_reconciliation_audit(self, db_session: Session = None) -> None:
+        """Triggers the asset audit reconciliation engine if both inventory and procurement data exist."""
+        session = db_session or self.db
+        try:
+            from src.verity_portal.data_hub.inventory.models import InventoryModel
+            from src.verity_portal.data_hub.procurement.models import ProcurementModel
+            from src.verity_portal.asset_audit.engine import AssetReconciliationEngine
+            
+            has_inventory = session.query(InventoryModel).first() is not None
+            has_procurement = session.query(ProcurementModel).first() is not None
+            
+            if has_inventory and has_procurement:
+                logger.info("Both IT Inventory and Procurement data present. Triggering Reconciliation Audit...")
+                engine = AssetReconciliationEngine(session)
+                engine.run_audit()
+            else:
+                logger.info(
+                    f"Reconciliation Audit skipped: has_inventory={has_inventory}, "
+                    f"has_procurement={has_procurement}. Both datasets must exist."
+                )
+        except Exception as e:
+            logger.error(f"Failed to execute automated reconciliation audit: {e}")
 
     def get_sync_status(self) -> Dict[str, Optional[str]]:
         """Retrieves the last sync/update ISO formatted timestamps for master records.

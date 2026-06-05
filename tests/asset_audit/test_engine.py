@@ -2,6 +2,7 @@ import pytest
 from sqlalchemy.orm import Session
 from src.verity_portal.data_hub.inventory.models import InventoryModel, AssetStatus
 from src.verity_portal.data_hub.procurement.models import ProcurementModel
+from src.verity_portal.data_hub.personnel.models import PersonnelModel
 from src.verity_portal.asset_audit.models import AssetViolationModel, AssetViolationType, AssetViolationStatus
 from src.verity_portal.asset_audit.engine import AssetReconciliationEngine
 
@@ -46,4 +47,42 @@ def test_reconciliation_detects_wasted_spend(db_session: Session):
     violation = db_session.query(AssetViolationModel).filter_by(po_number="PO-ACTIVE-1").first()
     assert violation is not None
     assert violation.violation_type == AssetViolationType.WASTED_SPEND
+    assert violation.status == AssetViolationStatus.OPEN
+
+def test_reconciliation_detects_unrecovered_asset(db_session: Session):
+    """Verify the engine identifies active assets held by terminated employees."""
+    import datetime
+    # Seed Procurement PO
+    proc = ProcurementModel(
+        po_number="PO-TERM-1",
+        status="ACTIVE"
+    )
+    # Seed terminated Personnel
+    personnel = PersonnelModel(
+        employee_id="EMP-TERM-1",
+        first_name="John",
+        last_name="Doe",
+        termination_date=datetime.date(2026, 5, 20)
+    )
+    # Seed IN_USE IT Asset held by them linked to the valid PO
+    inventory = InventoryModel(
+        asset_tag="LAPTOP-TERM",
+        po_number="PO-TERM-1",
+        assigned_employee_id="EMP-TERM-1",
+        status=AssetStatus.IN_USE
+    )
+    db_session.add(proc)
+    db_session.add(personnel)
+    db_session.add(inventory)
+    db_session.commit()
+
+    engine = AssetReconciliationEngine(db_session, email_service=None)
+    engine.run_audit()
+
+    # Query specifically for UNRECOVERED_ASSET violation to verify it was created
+    violation = db_session.query(AssetViolationModel).filter_by(
+        asset_tag="LAPTOP-TERM",
+        violation_type=AssetViolationType.UNRECOVERED_ASSET
+    ).first()
+    assert violation is not None
     assert violation.status == AssetViolationStatus.OPEN
