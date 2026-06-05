@@ -8,7 +8,7 @@ import logging
 import uuid
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import select
+from sqlalchemy import select, func
 from src.verity_portal.asset_audit.models import AssetViolationModel, AssetViolationStatus
 from src.verity_portal.data_hub.inventory.models import InventoryModel
 from src.verity_portal.data_hub.procurement.models import ProcurementModel
@@ -56,6 +56,8 @@ class AssetAuditService:
                 "po_number": row.AssetViolationModel.po_number,
                 "status": row.AssetViolationModel.status.value,
                 "resolution_reason": row.AssetViolationModel.resolution_reason,
+                "resolved_by": row.AssetViolationModel.resolved_by,
+                "resolved_at": row.AssetViolationModel.resolved_at.isoformat() if row.AssetViolationModel.resolved_at else None,
                 "created_at": row.AssetViolationModel.created_at.isoformat() if row.AssetViolationModel.created_at else None,
                 "updated_at": row.AssetViolationModel.updated_at.isoformat() if row.AssetViolationModel.updated_at else None,
                 "assigned_employee_id": row.assigned_employee_id,
@@ -67,13 +69,14 @@ class AssetAuditService:
         return violations
 
     @staticmethod
-    def resolve_violation(db: Session, violation_id: str, reason: str) -> bool:
+    def resolve_violation(db: Session, violation_id: str, reason: str, resolved_by: str = None) -> bool:
         """Resolves an open financial anomaly with manual auditor justification feedback.
 
         Args:
             db: The current database transaction session.
             violation_id: The UUID unique identifier of the target violation.
             reason: The manual justification text explaining how the violation was resolved.
+            resolved_by: The username/email of the resolver.
 
         Returns:
             True if the target violation was successfully resolved, otherwise False.
@@ -90,5 +93,7 @@ class AssetAuditService:
             
         violation.status = AssetViolationStatus.RESOLVED
         violation.resolution_reason = reason
+        violation.resolved_by = resolved_by
+        violation.resolved_at = func.now()
         db.commit()
         return True

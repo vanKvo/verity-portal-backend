@@ -12,6 +12,8 @@ class AssetViolationSchema(BaseModel):
     po_number: Optional[str] = None
     status: AssetViolationStatus
     resolution_reason: Optional[str] = None
+    resolved_by: Optional[str] = None
+    resolved_at: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
 

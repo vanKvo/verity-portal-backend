@@ -24,13 +24,14 @@ async def resolve_asset_violation(
     violation_id: str,
     payload: ResolveViolationRequest,
     db: Session = Depends(get_db),
-    _ = Depends(require_role("ROLE_FINANCE")),
+    current_user: dict = Depends(require_role("ROLE_FINANCE")),
 ):
     """Resolves an open financial anomaly. Restricted to ROLE_FINANCE."""
     resolved = AssetAuditService.resolve_violation(
         db, 
         violation_id=violation_id, 
-        reason=payload.resolution_reason
+        reason=payload.resolution_reason,
+        resolved_by=current_user.get("sub")
     )
     if not resolved:
         raise HTTPException(

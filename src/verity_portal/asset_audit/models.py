@@ -28,6 +28,8 @@ class AssetViolationModel(Base):
         nullable=False
     )
     resolution_reason = Column(String(500), nullable=True)
+    resolved_by = Column(String(255), nullable=True)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
     
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False)

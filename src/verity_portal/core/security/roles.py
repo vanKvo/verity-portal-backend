@@ -46,3 +46,24 @@ def require_role(required_role: str):
             )
         return payload
     return role_checker
+
+
+def require_any_role(required_roles: list[str]):
+    """FastAPI dependency that enforces a user has at least one of the listed roles.
+    
+    Args:
+        required_roles: A list of allowed role strings.
+        
+    Returns:
+        A function that performs the role check.
+    """
+    def role_checker(payload: dict = Depends(get_current_token_payload)):
+        roles = payload.get("roles", [])
+        if not any(r in roles for r in required_roles):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions"
+            )
+        return payload
+    return role_checker
+

@@ -147,6 +147,7 @@ class ItarService:
                 v.status = "RESOLVED"
                 v.resolution_reason = "SYSTEM_AUTO_RESOLVED"
                 v.notes = f"System auto-resolved: Data mismatch cleared (Status: {personnel.citizenship_status})"
+                v.resolved_by = "SYSTEM"
                 v.resolved_at = func.now()
                 resolved_count += 1
 
@@ -173,18 +174,20 @@ class ItarService:
                 "status": v.status,
                 "resolution_reason": v.resolution_reason,
                 "notes": v.notes,
+                "resolved_by": v.resolved_by,
                 "created_at": v.created_at.isoformat() if v.created_at else None,
                 "resolved_at": v.resolved_at.isoformat() if v.resolved_at else None
             })
         return result
 
     @staticmethod
-    def resolve_violation(db: Session, violation_id: str, reason: str = "MANUAL_RESOLUTION"):
+    def resolve_violation(db: Session, violation_id: str, reason: str = "MANUAL_RESOLUTION", resolved_by: str = None):
         """Marks a violation as resolved with justification reason."""
         violation = db.query(ComplianceViolationModel).filter(ComplianceViolationModel.id == violation_id).first()
         if violation:
             violation.status = "RESOLVED"
             violation.resolution_reason = reason
+            violation.resolved_by = resolved_by
             violation.resolved_at = func.now()
             db.commit()
             return True

@@ -48,11 +48,15 @@ def get_violations(db: Session = Depends(get_db)):
 @router.put(
     "/violations/{violation_id}/resolve", 
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(require_role("ROLE_ECO"))]
 )
-def resolve_violation(violation_id: str, reason: str = "MANUAL_RESOLUTION", db: Session = Depends(get_db)):
+def resolve_violation(
+    violation_id: str, 
+    reason: str = "MANUAL_RESOLUTION", 
+    db: Session = Depends(get_db),
+    current_user: dict = Depends(require_role("ROLE_ECO"))
+):
     """Marks a violation as resolved."""
-    success = ItarService.resolve_violation(db, violation_id, reason)
+    success = ItarService.resolve_violation(db, violation_id, reason, resolved_by=current_user.get("sub"))
     if not success:
         return {"message": "Violation not found or already resolved"}, status.HTTP_404_NOT_FOUND
     return {"message": "Violation resolved"}

@@ -9,7 +9,7 @@ import logging
 from typing import Optional
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, UploadFile, status
 
-from src.verity_portal.core.security.roles import require_role
+from src.verity_portal.core.security.roles import require_role, require_any_role
 from src.verity_portal.data_hub.core.ingestion import DataHubOrchestrationService, get_orchestration_service
 from src.verity_portal.data_hub.core.retrieval import RetrievalStrategyFactory
 from src.verity_portal.data_hub.exceptions import DataHubRetrievalError, IngestionRoutingError, MappingParseError
@@ -76,12 +76,12 @@ async def parse_headers(
     "/personnel/upload",
     response_model=IngestionResponse,
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(require_role("ROLE_HR"))],
 )
 async def upload_hr_data(
     file: UploadFile = File(...),
     mapping: Optional[str] = Form(None),
     orchestration_service: DataHubOrchestrationService = Depends(get_orchestration_service),
+    current_user: dict = Depends(require_role("ROLE_HR")),
 ) -> IngestionResponse:
     """Manual upload endpoint for HR Master Data (Citizenship, Termination).
 
@@ -91,6 +91,7 @@ async def upload_hr_data(
         file: The uploaded multipart spreadsheet file.
         mapping: Optional stringified JSON mapping object for header mapping.
         orchestration_service: The injected orchestration coordination service.
+        current_user: Token payload representing the logged in user.
 
     Returns:
         An IngestionResponse DTO showing counts of success/failed rows and details.
@@ -101,7 +102,7 @@ async def upload_hr_data(
     strategy = RetrievalStrategyFactory.get_manual_strategy(file)
     try:
         result = await orchestration_service.process_manual_upload(
-            strategy=strategy, mapping_str=mapping, target_service_type="personnel"
+            strategy=strategy, mapping_str=mapping, target_service_type="personnel", uploaded_by=current_user.get("sub")
         )
         return IngestionResponse(**result)
     except MappingParseError as exc:
@@ -135,12 +136,12 @@ async def upload_hr_data(
     "/projects/upload",
     response_model=IngestionResponse,
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(require_role("ROLE_ECO"))],
 )
 async def upload_project_data(
     file: UploadFile = File(...),
     mapping: Optional[str] = Form(None),
     orchestration_service: DataHubOrchestrationService = Depends(get_orchestration_service),
+    current_user: dict = Depends(require_role("ROLE_ECO")),
 ) -> IngestionResponse:
     """Manual upload endpoint for Project Master Data (Sensitivity).
 
@@ -150,6 +151,7 @@ async def upload_project_data(
         file: The uploaded multipart spreadsheet file.
         mapping: Optional stringified JSON mapping object for header mapping.
         orchestration_service: The injected orchestration coordination service.
+        current_user: Token payload representing the logged in user.
 
     Returns:
         An IngestionResponse DTO showing counts of success/failed rows and details.
@@ -160,7 +162,7 @@ async def upload_project_data(
     strategy = RetrievalStrategyFactory.get_manual_strategy(file)
     try:
         result = await orchestration_service.process_manual_upload(
-            strategy=strategy, mapping_str=mapping, target_service_type="projects"
+            strategy=strategy, mapping_str=mapping, target_service_type="projects", uploaded_by=current_user.get("sub")
         )
         return IngestionResponse(**result)
     except MappingParseError as exc:
@@ -194,12 +196,12 @@ async def upload_project_data(
     "/procurement/upload",
     response_model=IngestionResponse,
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(require_role("ROLE_FINANCE"))],
 )
 async def upload_procurement_data(
     file: UploadFile = File(...),
     mapping: Optional[str] = Form(None),
     orchestration_service: DataHubOrchestrationService = Depends(get_orchestration_service),
+    current_user: dict = Depends(require_role("ROLE_FINANCE")),
 ) -> IngestionResponse:
     """Manual upload endpoint for Procurement PO Data.
 
@@ -209,6 +211,7 @@ async def upload_procurement_data(
         file: The uploaded multipart spreadsheet file.
         mapping: Optional stringified JSON mapping object for header mapping.
         orchestration_service: The injected orchestration coordination service.
+        current_user: Token payload representing the logged in user.
 
     Returns:
         An IngestionResponse DTO showing counts of success/failed rows and details.
@@ -219,7 +222,7 @@ async def upload_procurement_data(
     strategy = RetrievalStrategyFactory.get_manual_strategy(file)
     try:
         result = await orchestration_service.process_manual_upload(
-            strategy=strategy, mapping_str=mapping, target_service_type="procurement"
+            strategy=strategy, mapping_str=mapping, target_service_type="procurement", uploaded_by=current_user.get("sub")
         )
         return IngestionResponse(**result)
     except MappingParseError as exc:
@@ -253,14 +256,14 @@ async def upload_procurement_data(
     "/inventory/upload",
     response_model=IngestionResponse,
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(require_role("ROLE_IT"))],
 )
 async def upload_inventory_data(
     file: UploadFile = File(...),
     mapping: Optional[str] = Form(None),
     orchestration_service: DataHubOrchestrationService = Depends(get_orchestration_service),
+    current_user: dict = Depends(require_role("ROLE_IT")),
 ) -> IngestionResponse:
-    """Manual upload endpoint for IT Inventory Data.
+    """Manual upload endpoint for IT Hardware Inventory Data.
 
     Enforces strict ROLE_IT role authorization before processing.
 
@@ -268,6 +271,7 @@ async def upload_inventory_data(
         file: The uploaded multipart spreadsheet file.
         mapping: Optional stringified JSON mapping object for header mapping.
         orchestration_service: The injected orchestration coordination service.
+        current_user: Token payload representing the logged in user.
 
     Returns:
         An IngestionResponse DTO showing counts of success/failed rows and details.
@@ -278,7 +282,7 @@ async def upload_inventory_data(
     strategy = RetrievalStrategyFactory.get_manual_strategy(file)
     try:
         result = await orchestration_service.process_manual_upload(
-            strategy=strategy, mapping_str=mapping, target_service_type="inventory"
+            strategy=strategy, mapping_str=mapping, target_service_type="inventory", uploaded_by=current_user.get("sub")
         )
         return IngestionResponse(**result)
     except MappingParseError as exc:
@@ -304,6 +308,66 @@ async def upload_inventory_data(
             detail={
                 "error_code": "INTERNAL_SERVER_ERROR",
                 "message": "An unexpected server error occurred during IT Inventory data upload.",
+            },
+        ) from exc
+
+
+@router.post(
+    "/it-activity/upload",
+    response_model=IngestionResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def upload_it_activity_data(
+    file: UploadFile = File(...),
+    mapping: Optional[str] = Form(None),
+    orchestration_service: DataHubOrchestrationService = Depends(get_orchestration_service),
+    current_user: dict = Depends(require_any_role(["ROLE_IT", "ROLE_ECO"])),
+) -> IngestionResponse:
+    """Manual upload endpoint for IT Activity logs.
+
+    Enforces strict ROLE_IT or ROLE_ECO role authorization before processing.
+
+    Args:
+        file: The uploaded multipart spreadsheet file.
+        mapping: Optional stringified JSON mapping object for header mapping.
+        orchestration_service: The injected orchestration coordination service.
+        current_user: Token payload representing the logged in user.
+
+    Returns:
+        An IngestionResponse DTO showing counts of success/failed rows and details.
+
+    Raises:
+        HTTPException: If ingestion, parsing, or column mapping fails.
+    """
+    strategy = RetrievalStrategyFactory.get_manual_strategy(file)
+    try:
+        result = await orchestration_service.process_manual_upload(
+            strategy=strategy, mapping_str=mapping, target_service_type="it_activity", uploaded_by=current_user.get("sub")
+        )
+        return IngestionResponse(**result)
+    except MappingParseError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "INVALID_MAPPING_FORMAT",
+                "message": f"The column mapping JSON payload is invalid: {exc.detail}",
+            },
+        ) from exc
+    except DataHubRetrievalError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={
+                "error_code": "RETRIEVAL_FAILED",
+                "message": f"Failed to retrieve upload file details: {exc.detail}",
+            },
+        ) from exc
+    except Exception as exc:
+        logger.exception("Failed in uploading IT activity data")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={
+                "error_code": "INTERNAL_SERVER_ERROR",
+                "message": "An unexpected server error occurred during IT Activity data upload.",
             },
         ) from exc
 

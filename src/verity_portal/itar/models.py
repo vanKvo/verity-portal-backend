@@ -31,4 +31,5 @@ class ComplianceViolationModel(Base):
     resolution_reason = Column(String(255), nullable=True) # SYSTEM_AUTO_RESOLVED, MANUAL_DSP5, etc.
     notes = Column(String, nullable=True) # Unlimited text
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    resolved_by = Column(String(255), nullable=True)
     resolved_at = Column(DateTime(timezone=True), nullable=True)

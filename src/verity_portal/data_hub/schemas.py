@@ -83,3 +83,7 @@ class SyncStatusResponse(BaseModel):
         None, 
         description="ISO 8601 formatted date-time string of the last updated inventory master record, or None."
     )
+    it_activity_last_sync: Optional[str] = Field(
+        None, 
+        description="ISO 8601 formatted date-time string of the last updated IT activity master record, or None."
+    )
