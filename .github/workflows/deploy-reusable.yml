@@ -70,6 +70,12 @@ jobs:
           tags: |
             ${{ env.BACKEND_ECR_URL }}:latest
             ${{ env.BACKEND_ECR_URL }}:${{ github.sha }}
+          cache-from: type=gha # Instructs Buildx to query the GitHub Actions Cache at the start of the build; f poetry.lock and pyproject.toml have not changed, the entire dependency installation stage is fetched instantly from the cache, completely skipping the download and install processes. 
+          cache-to: type=gha,mode=max # Instructs Buildx to export all intermediate build stages and layers (including the compiled virtual environment dependencies builder stage) directly to the GitHub Actions Cache store.
+          provenance: false # make provenence & sbom false to prevent the package output as an OCI Image Index, which is not compatible with AWS Lambda that can work with Docker flat image or schema manifest.
+          sbom: false
+
+
 
       - name: Force Lambda Function Code Update
         run: |
