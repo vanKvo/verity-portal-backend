@@ -21,10 +21,10 @@ class Settings(BaseSettings):
     ALLOWED_DOMAINS: str = Field(default="corporate.com,verity.com")
 
     # CORS Origins whitelisting
-    ALLOWED_ORIGINS: str = Field(...)
+    ALLOWED_ORIGINS: str = Field(default="http://localhost:4200", description="Comma-separated allowed CORS origins")
 
     # AWS Configuration
-    S3_HR_BUCKET_NAME: str = Field(..., description="S3 bucket for HR personnel data")
+    S3_HR_BUCKET_NAME: str = Field(default="verity-portal-dev", description="S3 bucket for HR personnel data")
     AWS_ACCESS_KEY_ID: str | None = Field(default=None, description="AWS Access Key ID")
     AWS_SECRET_ACCESS_KEY: str | None = Field(default=None, description="AWS Secret Access Key")
     AWS_REGION: str = Field(default="us-east-1", description="AWS Region")
