@@ -1,0 +1,13 @@
+name: Deploy Backend Dev
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  trigger-deploy:
+    uses: ./.github/workflows/deploy-reusable.yml
+    with:
+      environment: dev
+    secrets: inherit

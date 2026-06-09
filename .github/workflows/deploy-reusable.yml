@@ -1,0 +1,83 @@
+name: Reusable Deploy Backend
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+
+jobs:
+  deploy:
+    name: Deploy Backend to ${{ inputs.environment }}
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Poetry
+        run: curl -sSL https://install.python-poetry.org | python3 -
+
+      - name: Install Dependencies
+        run: poetry install
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Fetch Deployment Metadata from SSM
+        id: ssm_fetch
+        run: |
+          echo "Fetching target Lambda name, ECR URL, and Database URL..."
+          BACKEND_LAMBDA_NAME=$(aws ssm get-parameter --name "/verity-portal/${{ inputs.environment }}/backend_lambda_name" --query "Parameter.Value" --output text)
+          BACKEND_ECR_URL=$(aws ssm get-parameter --name "/verity-portal/${{ inputs.environment }}/backend_ecr_url" --query "Parameter.Value" --output text)
+          
+          echo "BACKEND_LAMBDA_NAME=$BACKEND_LAMBDA_NAME" >> $GITHUB_ENV
+          echo "BACKEND_ECR_URL=$BACKEND_ECR_URL" >> $GITHUB_ENV
+          
+          # Fetch and mask sensitive database connection URL
+          DATABASE_URL=$(aws ssm get-parameter --name "/verity-portal/${{ inputs.environment }}/database_url" --with-decryption --query "Parameter.Value" --output text)
+          echo "::add-mask::$DATABASE_URL"
+          echo "DATABASE_URL=$DATABASE_URL" >> $GITHUB_ENV
+
+      - name: Set up QEMU (for arm64 emulation)
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Amazon ECR
+        run: |
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin ${{ env.BACKEND_ECR_URL }}
+
+      - name: Build and Push Backend Container Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/arm64
+          push: true
+          tags: |
+            ${{ env.BACKEND_ECR_URL }}:latest
+            ${{ env.BACKEND_ECR_URL }}:${{ github.sha }}
+
+      - name: Force Lambda Function Code Update
+        run: |
+          aws lambda update-function-code \
+            --function-name ${{ env.BACKEND_LAMBDA_NAME }} \
+            --image-uri ${{ env.BACKEND_ECR_URL }}:${{ github.sha }} \
+            --region us-east-1
+
+      - name: Execute Alembic Database Migrations
+        run: |
+          DATABASE_URL="${{ env.DATABASE_URL }}" poetry run alembic upgrade head
