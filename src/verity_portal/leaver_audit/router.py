@@ -11,7 +11,6 @@ from sqlalchemy import func
 from src.verity_portal.core.database import get_db
 from src.verity_portal.core.security.roles import require_role, require_any_role
 from src.verity_portal.leaver_audit.service import audit_leaver_mover
-from src.verity_portal.leaver_audit.exporter import generate_audit_csv, generate_audit_pdf
 from src.verity_portal.intake.router import get_intake_service
 from src.verity_portal.intake.service import IntakeService
 from src.verity_portal.leaver_audit.exceptions import ComplianceError
@@ -136,29 +135,3 @@ async def resolve_leaver_mover_violation(
     db.commit()
     db.refresh(violation)
     return violation
-
-
-@router.post("/export/csv")
-async def export_audit_csv(violations: List[Dict[str, Any]]):
-    try:
-        csv_bytes = generate_audit_csv(violations)
-        return Response(
-            content=csv_bytes,
-            media_type="text/csv",
-            headers={"Content-Disposition": "attachment; filename=audit_export.csv"}
-        )
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
-
-
-@router.post("/export/pdf")
-async def export_audit_pdf(violations: List[Dict[str, Any]]):
-    try:
-        pdf_bytes = generate_audit_pdf(violations)
-        return Response(
-            content=pdf_bytes,
-            media_type="application/pdf",
-            headers={"Content-Disposition": "attachment; filename=audit_report.pdf"}
-        )
-    except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e)) from e
