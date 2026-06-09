@@ -10,15 +10,15 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from src.verity_portal.core.database import get_db
 from src.verity_portal.core.security.roles import require_role, require_any_role
-from src.verity_portal.audit.service import audit_leaver_mover
-from src.verity_portal.audit.exporter import generate_audit_csv, generate_audit_pdf
+from src.verity_portal.leaver_audit.service import audit_leaver_mover
+from src.verity_portal.leaver_audit.exporter import generate_audit_csv, generate_audit_pdf
 from src.verity_portal.intake.router import get_intake_service
 from src.verity_portal.intake.service import IntakeService
-from src.verity_portal.audit.exceptions import ComplianceError
-from src.verity_portal.audit.models import LeaverViolationModel, LeaverViolationStatus
-from src.verity_portal.audit.schemas import LeaverViolationResponseSchema, LeaverViolationResolveSchema
+from src.verity_portal.leaver_audit.exceptions import ComplianceError
+from src.verity_portal.leaver_audit.models import LeaverViolationModel, LeaverViolationStatus
+from src.verity_portal.leaver_audit.schemas import LeaverViolationResponseSchema, LeaverViolationResolveSchema
 
-router = APIRouter(prefix="/audit", tags=["Compliance Audit"])
+router = APIRouter(prefix="/leaver-audit", tags=["Compliance Audit"])
 
 
 @router.post("/leaver-mover")

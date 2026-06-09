@@ -21,7 +21,7 @@ def test_run_leaver_mover_audit_success(client, mock_intake_service):
     ]
     
     response = client.post(
-        "/audit/leaver-mover",
+        "/leaver-audit/leaver-mover",
         json={"hr_job_id": hr_job_id, "access_job_id": access_job_id}
     )
     
@@ -31,12 +31,12 @@ def test_run_leaver_mover_audit_success(client, mock_intake_service):
 
 def test_export_audit_results_csv(client):
     violations = [{"employee_id": "EMP001", "risk_level": "HIGH"}]
-    response = client.post("/audit/export/csv", json=violations)
+    response = client.post("/leaver-audit/export/csv", json=violations)
     assert response.status_code == 200
     assert response.headers["content-type"] == "text/csv; charset=utf-8"
 
 def test_export_audit_results_pdf(client):
     violations = [{"employee_id": "EMP001", "risk_level": "HIGH"}]
-    response = client.post("/audit/export/pdf", json=violations)
+    response = client.post("/leaver-audit/export/pdf", json=violations)
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"

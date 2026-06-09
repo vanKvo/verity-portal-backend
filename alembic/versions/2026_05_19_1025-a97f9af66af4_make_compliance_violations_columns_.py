@@ -22,8 +22,17 @@ def upgrade() -> None:
     """Upgrade schema."""
     op.execute("TRUNCATE TABLE verity.compliance_violations CASCADE")
     
-    op.drop_constraint('compliance_violations_personnel_id_fkey', 'compliance_violations', schema='verity', type_='foreignkey')
-    op.drop_constraint('compliance_violations_project_id_fkey', 'compliance_violations', schema='verity', type_='foreignkey')
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    fkeys = [fk['name'] for fk in inspector.get_foreign_keys('compliance_violations', schema='verity') if fk['name']]
+    
+    fk_personnel = next((fk for fk in fkeys if 'personnel_id' in fk or 'employee_id' in fk), None)
+    if fk_personnel:
+        op.drop_constraint(fk_personnel, 'compliance_violations', schema='verity', type_='foreignkey')
+        
+    fk_project = next((fk for fk in fkeys if 'project_id' in fk), None)
+    if fk_project:
+        op.drop_constraint(fk_project, 'compliance_violations', schema='verity', type_='foreignkey')
     
     op.alter_column('compliance_violations', 'employee_id',
                existing_type=sa.UUID(),
@@ -43,8 +52,12 @@ def downgrade() -> None:
     """Downgrade schema."""
     op.execute("TRUNCATE TABLE verity.compliance_violations CASCADE")
     
-    op.drop_constraint(None, 'compliance_violations', schema='verity', type_='foreignkey')
-    op.drop_constraint(None, 'compliance_violations', schema='verity', type_='foreignkey')
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    fkeys = [fk['name'] for fk in inspector.get_foreign_keys('compliance_violations', schema='verity') if fk['name']]
+    for fk in fkeys:
+        op.drop_constraint(fk, 'compliance_violations', schema='verity', type_='foreignkey')
+        
     op.create_foreign_key('compliance_violations_project_id_fkey', 'compliance_violations', 'projects', ['project_id'], ['id'], source_schema='verity', referent_schema='verity')
     op.create_foreign_key('compliance_violations_personnel_id_fkey', 'compliance_violations', 'personnel', ['employee_id'], ['id'], source_schema='verity', referent_schema='verity')
     op.alter_column('compliance_violations', 'project_id',

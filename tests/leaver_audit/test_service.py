@@ -1,6 +1,6 @@
 import pytest
-from src.verity_portal.audit.service import audit_leaver_mover
-from src.verity_portal.audit.exceptions import AuditDataInconsistencyError
+from src.verity_portal.leaver_audit.service import audit_leaver_mover
+from src.verity_portal.leaver_audit.exceptions import AuditDataInconsistencyError
 
 def test_audit_leaver_mover_identifies_violation():
     hr_records = [

@@ -18,6 +18,8 @@ logger.setLevel(logging.INFO)
 ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev").lower()
 
 WEBHOOK_URL = os.environ.get("WEBHOOK_URL")
+if not WEBHOOK_URL:
+    raise ValueError("System Configuration Error: WEBHOOK_URL environment variable is not set.")
 
 
 def lambda_handler(event: dict, context) -> dict:

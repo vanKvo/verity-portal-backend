@@ -5,8 +5,8 @@ from unittest.mock import MagicMock
 from src.verity_portal.data_hub.personnel.models import PersonnelModel, CitizenshipStatus
 from src.verity_portal.data_hub.it_activity.models import ItActivityModel
 from src.verity_portal.data_hub.it_activity.service import ItActivityService
-from src.verity_portal.audit.models import LeaverViolationModel, LeaverViolationStatus
-from src.verity_portal.audit.engine import LeaverMoverReconciliationEngine
+from src.verity_portal.leaver_audit.models import LeaverViolationModel, LeaverViolationStatus
+from src.verity_portal.leaver_audit.engine import LeaverMoverReconciliationEngine
 from src.verity_portal.core.email import BaseEmailService
 from src.verity_portal.identity.router import create_access_token
 from src.verity_portal.data_hub.core.models import IngestionLogModel
@@ -121,7 +121,7 @@ def test_get_violations_rbac(client, db_session):
     # 1. IT, ECO, and HR roles should be allowed
     token_it = create_access_token(data={"sub": "it@verity.com", "roles": ["ROLE_IT"]})
     response = client.get(
-        "/audit/leaver-mover/violations",
+        "/leaver-audit/leaver-mover/violations",
         headers={"Authorization": f"Bearer {token_it}"}
     )
     assert response.status_code == 200
@@ -129,7 +129,7 @@ def test_get_violations_rbac(client, db_session):
     
     token_hr = create_access_token(data={"sub": "hr@verity.com", "roles": ["ROLE_HR"]})
     response_hr = client.get(
-        "/audit/leaver-mover/violations",
+        "/leaver-audit/leaver-mover/violations",
         headers={"Authorization": f"Bearer {token_hr}"}
     )
     assert response_hr.status_code == 200
@@ -137,7 +137,7 @@ def test_get_violations_rbac(client, db_session):
     # 2. Block PM role
     token_pm = create_access_token(data={"sub": "pm@verity.com", "roles": ["ROLE_PM"]})
     response_pm = client.get(
-        "/audit/leaver-mover/violations",
+        "/leaver-audit/leaver-mover/violations",
         headers={"Authorization": f"Bearer {token_pm}"}
     )
     assert response_pm.status_code == 403
@@ -168,7 +168,7 @@ def test_resolve_violation_rbac(client, db_session):
     # 1. ROLE_IT should be forbidden from resolving
     token_it = create_access_token(data={"sub": "it@verity.com", "roles": ["ROLE_IT"]})
     response = client.post(
-        f"/audit/leaver-mover/violations/{violation_id}/resolve",
+        f"/leaver-audit/leaver-mover/violations/{violation_id}/resolve",
         json={"resolution_reason": "Approved extension"},
         headers={"Authorization": f"Bearer {token_it}"}
     )
@@ -177,7 +177,7 @@ def test_resolve_violation_rbac(client, db_session):
     # 2. ROLE_ECO should succeed
     token_eco = create_access_token(data={"sub": "eco@verity.com", "roles": ["ROLE_ECO"]})
     response_eco = client.post(
-        f"/audit/leaver-mover/violations/{violation_id}/resolve",
+        f"/leaver-audit/leaver-mover/violations/{violation_id}/resolve",
         json={"resolution_reason": "Approved extension"},
         headers={"Authorization": f"Bearer {token_eco}"}
     )

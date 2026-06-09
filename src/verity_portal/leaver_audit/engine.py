@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, func, Date
 from src.verity_portal.data_hub.personnel.models import PersonnelModel
 from src.verity_portal.data_hub.it_activity.models import ItActivityModel
-from src.verity_portal.audit.models import LeaverViolationModel, LeaverViolationStatus
+from src.verity_portal.leaver_audit.models import LeaverViolationModel, LeaverViolationStatus
 from src.verity_portal.core.email import BaseEmailService, get_email_service
 
 logger = logging.getLogger(__name__)

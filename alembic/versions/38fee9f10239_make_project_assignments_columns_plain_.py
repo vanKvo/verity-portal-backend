@@ -22,8 +22,17 @@ def upgrade() -> None:
     """Upgrade schema."""
     op.execute("TRUNCATE TABLE verity.project_assignments CASCADE")
     
-    op.drop_constraint('project_assignments_personnel_id_fkey', 'project_assignments', schema='verity', type_='foreignkey')
-    op.drop_constraint('project_assignments_project_id_fkey', 'project_assignments', schema='verity', type_='foreignkey')
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    fkeys = [fk['name'] for fk in inspector.get_foreign_keys('project_assignments', schema='verity') if fk['name']]
+    
+    fk_personnel = next((fk for fk in fkeys if 'personnel_id' in fk or 'employee_id' in fk), None)
+    if fk_personnel:
+        op.drop_constraint(fk_personnel, 'project_assignments', schema='verity', type_='foreignkey')
+        
+    fk_project = next((fk for fk in fkeys if 'project_id' in fk), None)
+    if fk_project:
+        op.drop_constraint(fk_project, 'project_assignments', schema='verity', type_='foreignkey')
     
     op.alter_column('project_assignments', 'project_id',
                existing_type=sa.UUID(),
@@ -43,8 +52,12 @@ def downgrade() -> None:
     """Downgrade schema."""
     op.execute("TRUNCATE TABLE verity.project_assignments CASCADE")
     
-    op.drop_constraint(None, 'project_assignments', schema='verity', type_='foreignkey')
-    op.drop_constraint(None, 'project_assignments', schema='verity', type_='foreignkey')
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    fkeys = [fk['name'] for fk in inspector.get_foreign_keys('project_assignments', schema='verity') if fk['name']]
+    for fk in fkeys:
+        op.drop_constraint(fk, 'project_assignments', schema='verity', type_='foreignkey')
+        
     op.create_foreign_key('project_assignments_project_id_fkey', 'project_assignments', 'projects', ['project_id'], ['id'], source_schema='verity', referent_schema='verity')
     op.create_foreign_key('project_assignments_personnel_id_fkey', 'project_assignments', 'personnel', ['employee_id'], ['id'], source_schema='verity', referent_schema='verity')
     op.alter_column('project_assignments', 'employee_id',

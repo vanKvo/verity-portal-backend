@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 from typing import Optional
 from datetime import date, datetime
 from uuid import UUID
-from src.verity_portal.audit.models import LeaverViolationStatus
+from src.verity_portal.leaver_audit.models import LeaverViolationStatus
 
 
 class LeaverViolationResponseSchema(BaseModel):

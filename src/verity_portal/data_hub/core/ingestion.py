@@ -36,7 +36,7 @@ from src.verity_portal.data_hub.exceptions import MappingParseError
 from src.verity_portal.data_hub.core.models import IngestionLogModel
 from src.verity_portal.data_hub.personnel.models import PersonnelModel
 from src.verity_portal.data_hub.it_activity.models import ItActivityModel
-from src.verity_portal.audit.engine import LeaverMoverReconciliationEngine
+from src.verity_portal.leaver_audit.engine import LeaverMoverReconciliationEngine
 
 logger = logging.getLogger(__name__)
 

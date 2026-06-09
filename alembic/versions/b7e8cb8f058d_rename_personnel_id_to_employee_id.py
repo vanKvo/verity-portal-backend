@@ -20,11 +20,29 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Upgrade schema."""
-    op.alter_column('compliance_violations', 'personnel_id', new_column_name='employee_id', schema='verity')
-    op.alter_column('project_assignments', 'personnel_id', new_column_name='employee_id', schema='verity')
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    
+    # Check compliance_violations
+    cols_cv = [c['name'] for c in inspector.get_columns('compliance_violations', schema='verity')]
+    if 'personnel_id' in cols_cv:
+        op.alter_column('compliance_violations', 'personnel_id', new_column_name='employee_id', schema='verity')
+        
+    # Check project_assignments
+    cols_pa = [c['name'] for c in inspector.get_columns('project_assignments', schema='verity')]
+    if 'personnel_id' in cols_pa:
+        op.alter_column('project_assignments', 'personnel_id', new_column_name='employee_id', schema='verity')
 
 
 def downgrade() -> None:
     """Downgrade schema."""
-    op.alter_column('compliance_violations', 'employee_id', new_column_name='personnel_id', schema='verity')
-    op.alter_column('project_assignments', 'employee_id', new_column_name='personnel_id', schema='verity')
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    
+    cols_cv = [c['name'] for c in inspector.get_columns('compliance_violations', schema='verity')]
+    if 'employee_id' in cols_cv:
+        op.alter_column('compliance_violations', 'employee_id', new_column_name='personnel_id', schema='verity')
+        
+    cols_pa = [c['name'] for c in inspector.get_columns('project_assignments', schema='verity')]
+    if 'employee_id' in cols_pa:
+        op.alter_column('project_assignments', 'employee_id', new_column_name='personnel_id', schema='verity')

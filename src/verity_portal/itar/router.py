@@ -5,7 +5,7 @@ from src.verity_portal.core.security.roles import require_role
 import json
 from src.verity_portal.itar.service import ItarService
 
-router = APIRouter(prefix="/api/v1/itar", tags=["itar"])
+router = APIRouter(prefix="/itar", tags=["itar"])
 
 @router.post(
     "/roster/upload", 

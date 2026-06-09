@@ -49,7 +49,7 @@ def upgrade() -> None:
     sa.Column('status', sa.String(), nullable=False),
     sa.Column('notes', sa.String(), nullable=True),
     sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=True),
-    sa.ForeignKeyConstraint(['personnel_id'], ['verity.personnel.id'], ),
+    sa.ForeignKeyConstraint(['employee_id'], ['verity.personnel.id'], ),
     sa.ForeignKeyConstraint(['project_id'], ['verity.projects.id'], ),
     sa.PrimaryKeyConstraint('id'),
     schema='verity'

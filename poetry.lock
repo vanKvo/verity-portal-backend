@@ -1209,6 +1209,21 @@ lingua = ["lingua"]
 testing = ["pytest"]
 
 [[package]]
+name = "mangum"
+version = "0.17.0"
+description = "AWS Lambda support for ASGI applications"
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "mangum-0.17.0-py3-none-any.whl", hash = "sha256:f00be705605bc4793958df62e4d249abf58d254c39d90bb410d069570206f4a2"},
+    {file = "mangum-0.17.0.tar.gz", hash = "sha256:5b4e26375e12eed051687670466d17968f8b74beecaca432edd4eb4127f78509"},
+]
+
+[package.dependencies]
+typing-extensions = "*"
+
+[[package]]
 name = "markupsafe"
 version = "3.0.3"
 description = "Safely add untrusted strings to HTML/XML markup."
@@ -3023,4 +3038,4 @@ test = ["pytest", "pytest-cov"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.15"
-content-hash = "e52d077812f6e5b4835104b80527cfa8a4e5efd85245b6cc3edaf1e9294f45ea"
+content-hash = "1deb49c3f283b9fec4ace1eb093c0430600697dbfa401c95e94591295189a982"

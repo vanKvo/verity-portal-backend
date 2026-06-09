@@ -52,7 +52,7 @@ def get_email_service() -> BaseEmailService:
         "sns",
         aws_access_key_id=settings.AWS_ACCESS_KEY_ID,
         aws_secret_access_key=settings.AWS_SECRET_ACCESS_KEY,
-        region_name=settings.AWS_DEFAULT_REGION,
+        region_name=settings.AWS_REGION,
     )
     
     # Inject the client and the configuration directly into the implementation

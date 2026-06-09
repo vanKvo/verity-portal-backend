@@ -34,7 +34,7 @@ def test_ingest_roster_success(client, db_session):
 
     # 4. Action
     response = client.post(
-        "/api/v1/itar/roster/upload",
+        "/itar/roster/upload",
         files={"file": file},
         headers=headers
     )
@@ -60,7 +60,7 @@ def test_ingest_roster_unauthorized(client):
     headers = {"Authorization": f"Bearer {token}"}
 
     response = client.post(
-        "/api/v1/itar/roster/upload",
+        "/itar/roster/upload",
         files={"file": file},
         headers=headers
     )
