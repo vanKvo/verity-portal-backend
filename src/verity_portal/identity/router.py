@@ -50,8 +50,7 @@ def register(response: Response, user_data: UserCreate, db: Session = Depends(ge
             value=refresh_token,
             httponly=True,
             secure=not settings.DEBUG,
-            samesite="lax",
-            max_age=7 * 24 * 60 * 60  # 7 days
+            samesite="lax"
         )
         
         return {"access_token": access_token, "token_type": "bearer", "roles": [new_user.role]}
@@ -96,8 +95,7 @@ def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), 
             value=refresh_token,
             httponly=True,
             secure=not settings.DEBUG,
-            samesite="lax",
-            max_age=7 * 24 * 60 * 60  # 7 days
+            samesite="lax"
         )
         
         return {"access_token": access_token, "token_type": "bearer", "roles": [db_user.role]}
@@ -131,8 +129,7 @@ def guest_login(response: Response):
         value=refresh_token,
         httponly=True,
         secure=not settings.DEBUG,
-        samesite="lax",
-        max_age=7 * 24 * 60 * 60  # 7 days
+        samesite="lax"
     )
     
     return {"access_token": access_token, "token_type": "bearer", "roles": roles}
@@ -160,8 +157,7 @@ def refresh_token(request: Request, response: Response, db: Session = Depends(ge
             value=new_refresh_token,
             httponly=True,
             secure=not settings.DEBUG,
-            samesite="lax",
-            max_age=7 * 24 * 60 * 60  # 7 days
+            samesite="lax"
         )
         
         return {"access_token": access_token, "token_type": "bearer", "roles": [db_user.role]}

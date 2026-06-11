@@ -42,6 +42,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.middleware("http")
+async def add_cache_control_headers(request: Request, call_next):
+    response = await call_next(request)
+    
+    if request.url.path == "/health":
+        # Cache public /health status for 1 minute to reduce API Gateway & server load
+        response.headers["Cache-Control"] = "public, max-age=60"
+    else:
+        # Strictly forbid browser and CDN caching for private compliance & security data
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        
+    return response
+
 app.include_router(identity_router)
 app.include_router(intake_router)
 app.include_router(leaver_audit_router)
