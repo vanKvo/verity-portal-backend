@@ -25,8 +25,6 @@ class Settings(BaseSettings):
 
     # AWS Configuration
     S3_HR_BUCKET_NAME: str = Field(default="verity-portal-dev", description="S3 bucket for HR personnel data")
-    AWS_ACCESS_KEY_ID: str | None = Field(default=None, description="AWS Access Key ID")
-    AWS_SECRET_ACCESS_KEY: str | None = Field(default=None, description="AWS Secret Access Key")
     AWS_REGION: str = Field(default="us-east-1", description="AWS Region")
     S3_ENDPOINT_URL: str | None = Field(default=None, description="S3 Endpoint URL (e.g. MinIO/LocalStack)")
     AWS_SNS_TOPIC_ARN: str | None = Field(default=None, description="AWS SNS Topic ARN for administrator email alerts")
