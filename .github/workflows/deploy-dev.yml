@@ -1,12 +1,16 @@
 name: Deploy Backend Dev
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Backend CI"]
+    types:
+      - completed
     branches:
       - main
 
 jobs:
   trigger-deploy:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     uses: ./.github/workflows/deploy-reusable.yml
     with:
       environment: dev
