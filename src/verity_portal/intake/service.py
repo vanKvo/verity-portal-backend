@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from src.verity_portal.intake.storage import StoragePort
 from src.verity_portal.intake.models import FileMetadataModel, IntakeRecordModel
 from src.verity_portal.core.file_parser import parse_file_to_df
+from src.verity_portal.core.exceptions import FileTooLargeError
 
 class IntakeService:
     def __init__(self, storage_port: StoragePort, db: Session):
@@ -16,7 +17,7 @@ class IntakeService:
 
     async def ingest_file(self, content: bytes, job_id: uuid.UUID, filename: str) -> uuid.UUID:
         if len(content) > self.MAX_SIZE_MB * 1024 * 1024:
-            raise ValueError(f"File size exceeds {self.MAX_SIZE_MB}MB limit")
+            raise FileTooLargeError(self.MAX_SIZE_MB, len(content))
             
         storage_path = await self.storage_port.save_file(content, job_id, filename, subfolder="staging")
         

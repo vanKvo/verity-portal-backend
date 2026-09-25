@@ -21,3 +21,10 @@ class MappingError(DomainException):
     def __init__(self, missing_fields: list[str]):
         self.missing_fields = missing_fields
         super().__init__(f"Missing required fields for audit: {', '.join(missing_fields)}")
+
+class FileTooLargeError(DomainException):
+    """Raised when an uploaded file exceeds the allowed size limit."""
+    def __init__(self, max_size_mb: int, actual_size_bytes: int):
+        self.max_size_mb = max_size_mb
+        self.actual_size_mb = actual_size_bytes / (1024 * 1024)
+        super().__init__(f"File size exceeds {max_size_mb}MB limit")

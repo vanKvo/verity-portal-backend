@@ -12,7 +12,7 @@ from src.verity_portal.intake.storage import LocalFileSystemAdapter
 from src.verity_portal.intake.service import IntakeService
 from src.verity_portal.intake.mapper import suggest_mappings
 from src.verity_portal.intake.schemas import ConfirmMappingRequest, UploadResponse
-from src.verity_portal.core.exceptions import MappingError
+from src.verity_portal.core.exceptions import MappingError, FileTooLargeError
 from src.verity_portal.core.file_parser import extract_headers_from_file
 
 router = APIRouter(prefix="/intake", tags=["Data Intake"])
@@ -40,9 +40,8 @@ async def upload_file(
     
     try:
         file_id = await intake_service.ingest_file(content, job_id, file.filename)
-    except ValueError as e:
-        if "too large" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=str(e))
+    except FileTooLargeError as e:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail=str(e))
     try:
         headers = extract_headers_from_file(file.filename, io.BytesIO(content))
     except Exception as e:
@@ -84,13 +83,7 @@ async def confirm_mapping(
         count = await intake_service.confirm_and_ingest(job_id, active_mappings)
         return {"status": "success", "records_ingested": count}
     except ValueError as e:
-        if "too large" in str(e).lower():
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, 
-                                detail="The uploaded file exceeds the allowed size."
-            )
-        raise HTTPException(status_code=status.HTTP_400, 
-                            detail="Invalid input provided."
-            )
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
     except Exception as e:
         logger.error(f"Unhandled error in comfirm_mapping: {e}", exc_info=True)
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 

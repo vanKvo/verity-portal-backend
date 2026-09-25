@@ -3,6 +3,7 @@ import uuid
 from unittest.mock import MagicMock, AsyncMock
 from src.verity_portal.intake.service import IntakeService
 from src.verity_portal.intake.storage import StoragePort
+from src.verity_portal.core.exceptions import FileTooLargeError
 
 @pytest.fixture
 def mock_storage():
@@ -41,8 +42,9 @@ async def test_ingest_file_rejects_large_files(intake_service):
     filename = "large.csv"
     large_content = b"0" * (51 * 1024 * 1024)
     
-    with pytest.raises(ValueError, match="File size exceeds 50MB limit"):
+    with pytest.raises(FileTooLargeError, match="File size exceeds 50MB limit") as exc_info:
         await intake_service.ingest_file(large_content, job_id, filename)
+    assert exc_info.value.max_size_mb == 50
 
 @pytest.mark.asyncio
 async def test_archive_file_coordinates_move_and_update(intake_service, mock_storage, mock_db):
