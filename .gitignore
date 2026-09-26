@@ -43,6 +43,8 @@ testem.log
 __screenshots__/
 /prompts
 /test-data
+/test_docs
+
 
 # System files
 .DS_Store
