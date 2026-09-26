@@ -152,7 +152,7 @@ class IdentityService:
             if not db_user or not db_user.is_active:
                 raise InactiveUserError(email or "")
 
-            access_token = cls.create_access_token(data={"sub": db_user.email, "roles": [db_user.role]})
+            access_token = cls.create_access_token(data={"sub": db_user.email, "roles": db_user.role.split(",")})
             new_refresh_token = cls.create_refresh_token(data={"sub": db_user.email})
             
             return access_token, new_refresh_token, db_user

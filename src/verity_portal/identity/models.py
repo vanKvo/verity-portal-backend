@@ -10,4 +10,4 @@ class UserModel(Base):
     email = Column(String(255), unique=True, index=True, nullable=False)
     hashed_password = Column(String(255), nullable=True)
     is_active = Column(Boolean, default=True)
-    role = Column(String(50), default="user", nullable=False)
+    role = Column(String(255), default="user", nullable=False)

@@ -42,9 +42,10 @@ def register(response: Response, user_data: UserCreate, db: Session = Depends(ge
     try:
         new_user = IdentityService.register_user(db=db, user_data=user_data)
         
-        access_token = IdentityService.create_access_token(data={"sub": new_user.email, "roles": [new_user.role]})
+        roles = new_user.role.split(",")
+        access_token = IdentityService.create_access_token(data={"sub": new_user.email, "roles": roles})
         refresh_token = IdentityService.create_refresh_token(data={"sub": new_user.email})
-        
+
         response.set_cookie(
             key="refresh_token",
             value=refresh_token,
@@ -52,8 +53,8 @@ def register(response: Response, user_data: UserCreate, db: Session = Depends(ge
             secure=not settings.DEBUG,
             samesite="lax"
         )
-        
-        return {"access_token": access_token, "token_type": "bearer", "roles": [new_user.role]}
+
+        return {"access_token": access_token, "token_type": "bearer", "roles": roles}
 
     except UserAlreadyExistsError as e:
         raise HTTPException(
@@ -86,10 +87,11 @@ def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), 
     """
     try:
         db_user = IdentityService.authenticate_user(db=db, form_data=form_data)
-        
-        access_token = IdentityService.create_access_token(data={"sub": db_user.email, "roles": [db_user.role]})
+
+        roles = db_user.role.split(",")
+        access_token = IdentityService.create_access_token(data={"sub": db_user.email, "roles": roles})
         refresh_token = IdentityService.create_refresh_token(data={"sub": db_user.email})
-        
+
         response.set_cookie(
             key="refresh_token",
             value=refresh_token,
@@ -97,8 +99,8 @@ def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), 
             secure=not settings.DEBUG,
             samesite="lax"
         )
-        
-        return {"access_token": access_token, "token_type": "bearer", "roles": [db_user.role]}
+
+        return {"access_token": access_token, "token_type": "bearer", "roles": roles}
 
     except IncorrectCredentialsError as e:
         raise HTTPException(
@@ -108,31 +110,6 @@ def login(response: Response, form_data: OAuth2PasswordRequestForm = Depends(), 
                 "message": str(e)
             }
         ) from e
-
-@router.post("/guest-login", response_model=Token)
-def guest_login(response: Response):
-    """Provides instant guest session authentication for demo evaluators.
-
-    Args:
-        response: FastAPI Response instance.
-
-    Returns:
-        The generated Token schema loaded with demo roles.
-    """
-    roles = ["guest", "ROLE_HR", "ROLE_PM", "ROLE_ECO", "ROLE_FINANCE", "ROLE_IT"]
-    
-    access_token = IdentityService.create_access_token(data={"sub": "guest@verity.com", "roles": roles})
-    refresh_token = IdentityService.create_refresh_token(data={"sub": "guest@verity.com"})
-    
-    response.set_cookie(
-        key="refresh_token",
-        value=refresh_token,
-        httponly=True,
-        secure=not settings.DEBUG,
-        samesite="lax"
-    )
-    
-    return {"access_token": access_token, "token_type": "bearer", "roles": roles}
 
 @router.post("/refresh-token", response_model=Token)
 def refresh_token(request: Request, response: Response, db: Session = Depends(get_db)):
@@ -160,7 +137,7 @@ def refresh_token(request: Request, response: Response, db: Session = Depends(ge
             samesite="lax"
         )
         
-        return {"access_token": access_token, "token_type": "bearer", "roles": [db_user.role]}
+        return {"access_token": access_token, "token_type": "bearer", "roles": db_user.role.split(",")}
 
     except TokenValidationError as e:
         raise HTTPException(
